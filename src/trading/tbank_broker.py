@@ -355,6 +355,58 @@ class TBankBroker:
             logger.error(f"Ошибка получения портфеля: {e}")
             return {'total_amount': 0, 'expected_yield': 0, 'positions': []}
     
+    async def get_account_balance(self) -> Dict[str, float]:
+        """
+        Получение баланса счета (денежные средства по валютам)
+        
+        Returns:
+            Словарь с балансами по валютам: {'rub': amount, 'usd': amount, ...}
+        """
+        try:
+            async with AsyncClient(self.token, target=self.target) as client:
+                if self.sandbox:
+                    response = await client.sandbox.get_sandbox_positions(
+                        account_id=self.account_id
+                    )
+                else:
+                    response = await client.operations.get_positions(
+                        account_id=self.account_id
+                    )
+                
+                balances = {}
+                
+                # Получение денежных средств
+                if hasattr(response, 'money') and response.money:
+                    for money in response.money:
+                        currency = money.currency.lower()
+                        amount = self._money_value_to_float(money)
+                        balances[currency] = amount
+                
+                logger.debug(f"Получены балансы счета: {balances}")
+                return balances
+                
+        except Exception as e:
+            logger.error(f"Ошибка получения баланса счета: {e}")
+            return {}
+    
+    async def get_total_balance_rub(self) -> float:
+        """
+        Получение общего баланса в рублях (доступные средства)
+        
+        Returns:
+            Сумма доступных средств в рублях
+        """
+        try:
+            balances = await self.get_account_balance()
+            rub_balance = balances.get('rub', 0.0)
+            
+            logger.info(f"Доступные средства на счете: {rub_balance:,.2f} ₽")
+            return rub_balance
+            
+        except Exception as e:
+            logger.error(f"Ошибка получения баланса в рублях: {e}")
+            return 0.0
+    
     async def get_operations(
         self,
         from_date: Optional[datetime] = None,
@@ -443,7 +495,13 @@ class TBankBroker:
         """Конвертация Quotation в float"""
         if quotation is None:
             return 0.0
-        return quotation.units + quotation.nano / 1_000_000_000
+        # Если уже число - вернуть как есть
+        if isinstance(quotation, (int, float)):
+            return float(quotation)
+        # Если Quotation объект
+        if hasattr(quotation, 'units') and hasattr(quotation, 'nano'):
+            return quotation.units + quotation.nano / 1_000_000_000
+        return 0.0
     
     def _quotation(self, value: float):
         """Конвертация float в Quotation"""
@@ -463,7 +521,13 @@ class TBankBroker:
         """Конвертация MoneyValue в float"""
         if money_value is None:
             return 0.0
-        return money_value.units + money_value.nano / 1_000_000_000
+        # Если уже число - вернуть как есть
+        if isinstance(money_value, (int, float)):
+            return float(money_value)
+        # Если MoneyValue объект
+        if hasattr(money_value, 'units') and hasattr(money_value, 'nano'):
+            return money_value.units + money_value.nano / 1_000_000_000
+        return 0.0
     
     def get_status(self) -> Dict:
         """

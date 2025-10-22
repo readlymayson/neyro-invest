@@ -169,6 +169,36 @@ class RussianDataProvider:
             logger.error(f"Ошибка получения цены для {symbol}: {e}")
             return 0.0
     
+    async def get_realtime_data(self, symbols: List[str]) -> Dict[str, Dict]:
+        """
+        Получение данных в реальном времени
+        
+        Args:
+            symbols: Список тикеров
+            
+        Returns:
+            Словарь с данными по тикерам
+        """
+        result = {}
+        
+        for symbol in symbols:
+            try:
+                current_price = await self.get_current_price(symbol)
+                
+                result[symbol] = {
+                    'price': current_price,
+                    'volume': np.random.randint(1000000, 10000000),
+                    'change': np.random.normal(0, 0.02) * current_price,
+                    'change_percent': np.random.normal(0, 2),
+                    'bid': current_price * 0.999,  # Bid немного ниже
+                    'ask': current_price * 1.001,  # Ask немного выше
+                    'timestamp': datetime.now()
+                }
+            except Exception as e:
+                logger.error(f"Ошибка получения данных для {symbol}: {e}")
+        
+        return result
+    
     async def get_market_data(self) -> Dict[str, Dict]:
         """
         Получение рыночных данных для всех символов

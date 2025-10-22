@@ -494,10 +494,10 @@ class ConfigPanel:
         ).grid(row=2, column=1, sticky='w', padx=(10, 0), pady=2)
         
         # Настройки брокера
-        broker_settings_frame = ttk.LabelFrame(scrollable_frame, text="Настройки брокера", padding=10)
+        broker_settings_frame = ttk.LabelFrame(scrollable_frame, text="Настройки брокера T-Bank", padding=10)
         broker_settings_frame.pack(fill=tk.X, padx=10, pady=5)
         
-        ttk.Label(broker_settings_frame, text="Tinkoff токен:").grid(row=0, column=0, sticky='w', pady=2)
+        ttk.Label(broker_settings_frame, text="T-Bank токен:").grid(row=0, column=0, sticky='w', pady=2)
         self.tinkoff_token_var = tk.StringVar()
         ttk.Entry(
             broker_settings_frame,
@@ -506,21 +506,45 @@ class ConfigPanel:
             width=30
         ).grid(row=0, column=1, sticky='ew', padx=(10, 0), pady=2)
         
-        ttk.Label(broker_settings_frame, text="Sber токен:").grid(row=1, column=0, sticky='w', pady=2)
+        ttk.Button(
+            broker_settings_frame,
+            text="ℹ️ Как получить",
+            command=self._show_token_help
+        ).grid(row=0, column=2, padx=(5, 0), pady=2)
+        
+        self.sandbox_mode_var = tk.BooleanVar()
+        ttk.Checkbutton(
+            broker_settings_frame,
+            text="Режим песочницы (sandbox)",
+            variable=self.sandbox_mode_var
+        ).grid(row=1, column=0, columnspan=3, sticky='w', pady=2)
+        
+        # Информация о счете
+        account_info_frame = ttk.Frame(broker_settings_frame)
+        account_info_frame.grid(row=2, column=0, columnspan=3, sticky='ew', pady=(10, 0))
+        
+        ttk.Button(
+            account_info_frame,
+            text="📊 Проверить подключение",
+            command=self._check_tbank_connection
+        ).pack(side=tk.LEFT)
+        
+        ttk.Label(broker_settings_frame, text="Sber токен:").grid(row=3, column=0, sticky='w', pady=(10, 2))
         self.sber_token_var = tk.StringVar()
         ttk.Entry(
             broker_settings_frame,
             textvariable=self.sber_token_var,
             show="*",
-            width=30
-        ).grid(row=1, column=1, sticky='ew', padx=(10, 0), pady=2)
+            width=30,
+            state='disabled'  # Пока не реализовано
+        ).grid(row=3, column=1, sticky='ew', padx=(10, 0), pady=(10, 2))
         
-        self.sandbox_mode_var = tk.BooleanVar()
-        ttk.Checkbutton(
+        ttk.Label(
             broker_settings_frame,
-            text="Режим песочницы",
-            variable=self.sandbox_mode_var
-        ).grid(row=2, column=0, columnspan=2, sticky='w', pady=2)
+            text="(в разработке)",
+            foreground='gray',
+            font=('Arial', 8, 'italic')
+        ).grid(row=3, column=2, padx=(5, 0), pady=(10, 2))
         
         # Настройка сетки
         basic_frame.columnconfigure(1, weight=1)
@@ -544,15 +568,25 @@ class ConfigPanel:
         basic_frame.pack(fill=tk.X, padx=10, pady=10)
         
         ttk.Label(basic_frame, text="Начальный капитал (₽):").grid(row=0, column=0, sticky='w', pady=5)
+        
+        capital_container = ttk.Frame(basic_frame)
+        capital_container.grid(row=0, column=1, sticky='ew', padx=(10, 0), pady=5)
+        
         self.initial_capital_var = tk.IntVar()
         ttk.Spinbox(
-            basic_frame,
+            capital_container,
             from_=100000,
             to=100000000,
             textvariable=self.initial_capital_var,
             width=15,
             increment=100000
-        ).grid(row=0, column=1, sticky='w', padx=(10, 0), pady=5)
+        ).pack(side=tk.LEFT)
+        
+        ttk.Button(
+            capital_container,
+            text="💰 Получить со счета",
+            command=self._get_balance_from_account
+        ).pack(side=tk.LEFT, padx=(10, 0))
         
         ttk.Label(basic_frame, text="Интервал обновления (сек):").grid(row=1, column=0, sticky='w', pady=5)
         self.portfolio_update_interval_var = tk.IntVar()
@@ -1366,3 +1400,308 @@ class ConfigPanel:
             Путь к файлу конфигурации
         """
         return self.current_config_path
+    
+    def _get_balance_from_account(self):
+        """
+        Получение баланса со счета T-Bank
+        """
+        try:
+            import asyncio
+            import os
+            from ..trading.tbank_broker import TBankBroker
+            
+            # Проверка наличия токена
+            token = self.tinkoff_token_var.get()
+            if not token:
+                token = os.getenv('TINKOFF_TOKEN')
+            
+            if not token:
+                messagebox.showwarning(
+                    "Предупреждение",
+                    "Не указан токен T-Bank.\n\n"
+                    "Укажите токен в настройках брокера или в переменной окружения TINKOFF_TOKEN."
+                )
+                return
+            
+            # Получение настроек sandbox
+            sandbox = self.sandbox_mode_var.get()
+            
+            # Показ индикатора загрузки
+            loading_dialog = tk.Toplevel(self.parent)
+            loading_dialog.title("Получение баланса")
+            loading_dialog.geometry("300x100")
+            loading_dialog.transient(self.parent)
+            loading_dialog.grab_set()
+            
+            ttk.Label(
+                loading_dialog,
+                text="Подключение к T-Bank API...",
+                font=('Arial', 10)
+            ).pack(pady=20)
+            
+            progress = ttk.Progressbar(
+                loading_dialog,
+                mode='indeterminate'
+            )
+            progress.pack(fill=tk.X, padx=20)
+            progress.start()
+            
+            # Функция для получения баланса в отдельном потоке
+            def get_balance():
+                try:
+                    async def fetch_balance():
+                        broker = TBankBroker(
+                            token=token,
+                            sandbox=sandbox
+                        )
+                        await broker.initialize()
+                        balance = await broker.get_total_balance_rub()
+                        return balance
+                    
+                    # Создание нового event loop для потока
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    balance = loop.run_until_complete(fetch_balance())
+                    loop.close()
+                    
+                    # Обновление значения в главном потоке
+                    self.parent.after(0, lambda: self._update_balance_value(balance, loading_dialog))
+                    
+                except Exception as e:
+                    logger.error(f"Ошибка получения баланса: {e}")
+                    self.parent.after(0, lambda: self._show_balance_error(str(e), loading_dialog))
+            
+            # Запуск в отдельном потоке
+            import threading
+            balance_thread = threading.Thread(target=get_balance, daemon=True)
+            balance_thread.start()
+            
+        except Exception as e:
+            logger.error(f"Ошибка инициализации получения баланса: {e}")
+            messagebox.showerror("Ошибка", f"Не удалось получить баланс:\n{e}")
+    
+    def _update_balance_value(self, balance: float, dialog):
+        """
+        Обновление значения баланса
+        
+        Args:
+            balance: Полученный баланс
+            dialog: Диалоговое окно загрузки
+        """
+        try:
+            dialog.destroy()
+            
+            if balance > 0:
+                self.initial_capital_var.set(int(balance))
+                self.config_modified = True
+                self._update_changes_indicator()
+                
+                messagebox.showinfo(
+                    "Баланс получен",
+                    f"Баланс счета: {balance:,.2f} ₽\n\n"
+                    f"Начальный капитал обновлен.\n"
+                    f"Не забудьте сохранить конфигурацию."
+                )
+            else:
+                messagebox.showwarning(
+                    "Баланс нулевой",
+                    "На счете нет доступных средств.\n\n"
+                    "Для sandbox счетов используйте пополнение через API."
+                )
+                
+        except Exception as e:
+            logger.error(f"Ошибка обновления значения баланса: {e}")
+    
+    def _show_balance_error(self, error_msg: str, dialog):
+        """
+        Отображение ошибки получения баланса
+        
+        Args:
+            error_msg: Сообщение об ошибке
+            dialog: Диалоговое окно загрузки
+        """
+        try:
+            dialog.destroy()
+            messagebox.showerror(
+                "Ошибка получения баланса",
+                f"Не удалось получить баланс со счета:\n\n{error_msg}\n\n"
+                f"Проверьте:\n"
+                f"• Правильность токена\n"
+                f"• Наличие интернет-соединения\n"
+                f"• Настройки sandbox/production"
+            )
+        except Exception as e:
+            logger.error(f"Ошибка отображения ошибки баланса: {e}")
+    
+    def _show_token_help(self):
+        """
+        Показ справки о получении токена T-Bank
+        """
+        help_text = """
+Как получить токен T-Bank Invest API:
+
+1. Откройте браузер и перейдите по ссылке:
+   https://www.tbank.ru/invest/settings/api/
+
+2. Войдите в свой аккаунт T-Bank Инвестиции
+
+3. Перейдите в раздел "Настройки" → "API"
+
+4. Нажмите кнопку "Выпустить токен"
+
+5. Выберите тип токена:
+   • Для торговли: "Полный доступ"
+   • Для тестирования: "Только для чтения"
+
+6. Скопируйте токен (показывается ОДИН раз!)
+
+⚠️ Важно:
+• Храните токен в безопасности
+• Не передавайте токен третьим лицам
+• Для тестирования используйте режим "Песочница"
+
+📚 Документация:
+docs/tbank/getting-started.md
+        """
+        messagebox.showinfo("Получение токена T-Bank", help_text)
+    
+    def _check_tbank_connection(self):
+        """
+        Проверка подключения к T-Bank API
+        """
+        try:
+            import asyncio
+            import os
+            from ..trading.tbank_broker import TBankBroker
+            
+            # Проверка наличия токена
+            token = self.tinkoff_token_var.get()
+            if not token:
+                token = os.getenv('TINKOFF_TOKEN')
+            
+            if not token:
+                messagebox.showwarning(
+                    "Предупреждение",
+                    "Не указан токен T-Bank.\n\n"
+                    "Укажите токен в настройках или в переменной окружения TINKOFF_TOKEN."
+                )
+                return
+            
+            # Получение настроек sandbox
+            sandbox = self.sandbox_mode_var.get()
+            
+            # Показ индикатора загрузки
+            loading_dialog = tk.Toplevel(self.parent)
+            loading_dialog.title("Проверка подключения")
+            loading_dialog.geometry("350x120")
+            loading_dialog.transient(self.parent)
+            loading_dialog.grab_set()
+            
+            ttk.Label(
+                loading_dialog,
+                text="Подключение к T-Bank API...",
+                font=('Arial', 10)
+            ).pack(pady=20)
+            
+            progress = ttk.Progressbar(
+                loading_dialog,
+                mode='indeterminate'
+            )
+            progress.pack(fill=tk.X, padx=20)
+            progress.start()
+            
+            # Функция для проверки подключения в отдельном потоке
+            def check_connection():
+                try:
+                    async def test_connection():
+                        broker = TBankBroker(
+                            token=token,
+                            sandbox=sandbox
+                        )
+                        await broker.initialize()
+                        
+                        # Получение информации о счете
+                        balance = await broker.get_total_balance_rub()
+                        status = broker.get_status()
+                        
+                        return {
+                            'success': True,
+                            'balance': balance,
+                            'account_id': status.get('account_id'),
+                            'mode': status.get('mode'),
+                            'instruments': status.get('instruments_loaded', 0)
+                        }
+                    
+                    # Создание нового event loop для потока
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    result = loop.run_until_complete(test_connection())
+                    loop.close()
+                    
+                    # Обновление результата в главном потоке
+                    self.parent.after(0, lambda: self._show_connection_result(result, loading_dialog))
+                    
+                except Exception as e:
+                    logger.error(f"Ошибка проверки подключения: {e}")
+                    self.parent.after(0, lambda: self._show_connection_error(str(e), loading_dialog))
+            
+            # Запуск в отдельном потоке
+            import threading
+            check_thread = threading.Thread(target=check_connection, daemon=True)
+            check_thread.start()
+            
+        except Exception as e:
+            logger.error(f"Ошибка инициализации проверки подключения: {e}")
+            messagebox.showerror("Ошибка", f"Не удалось проверить подключение:\n{e}")
+    
+    def _show_connection_result(self, result: dict, dialog):
+        """
+        Отображение результата проверки подключения
+        
+        Args:
+            result: Результат проверки
+            dialog: Диалоговое окно загрузки
+        """
+        try:
+            dialog.destroy()
+            
+            if result.get('success'):
+                mode_text = "Песочница (Sandbox)" if result.get('mode') == 'sandbox' else "Боевой режим (Production)"
+                
+                info_text = (
+                    f"✅ Подключение успешно!\n\n"
+                    f"Режим: {mode_text}\n"
+                    f"Account ID: {result.get('account_id', 'N/A')}\n"
+                    f"Баланс: {result.get('balance', 0):,.2f} ₽\n"
+                    f"Доступно инструментов: {result.get('instruments', 0)}\n\n"
+                    f"Вы можете использовать систему для торговли."
+                )
+                
+                messagebox.showinfo("Подключение к T-Bank", info_text)
+            else:
+                messagebox.showerror("Ошибка подключения", "Не удалось подключиться к T-Bank API")
+                
+        except Exception as e:
+            logger.error(f"Ошибка отображения результата подключения: {e}")
+    
+    def _show_connection_error(self, error_msg: str, dialog):
+        """
+        Отображение ошибки подключения
+        
+        Args:
+            error_msg: Сообщение об ошибке
+            dialog: Диалоговое окно загрузки
+        """
+        try:
+            dialog.destroy()
+            messagebox.showerror(
+                "Ошибка подключения",
+                f"Не удалось подключиться к T-Bank API:\n\n{error_msg}\n\n"
+                f"Проверьте:\n"
+                f"• Правильность токена\n"
+                f"• Наличие интернет-соединения\n"
+                f"• Настройки sandbox/production\n"
+                f"• Установлена ли библиотека tinkoff-investments"
+            )
+        except Exception as e:
+            logger.error(f"Ошибка отображения ошибки подключения: {e}")
