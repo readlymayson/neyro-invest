@@ -106,6 +106,7 @@ class InvestmentSystem:
         
         # Установка связей между компонентами
         self.trading_engine.set_components(self.data_provider, self.portfolio_manager)
+        self.portfolio_manager.set_data_provider(self.data_provider)
         
         logger.info("Все компоненты инициализированы")
     

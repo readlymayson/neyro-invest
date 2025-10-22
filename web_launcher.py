@@ -70,7 +70,7 @@ def setup_environment():
     sys.path.insert(0, str(root_dir))
     
     # Проверка переменных окружения
-    env_file = root_dir / "environment.env"
+    env_file = root_dir / ".env"
     if env_file.exists():
         logger.info(f"Найден файл окружения: {env_file}")
         try:
@@ -94,7 +94,7 @@ def setup_environment():
 def main():
     """Главная функция запуска веб-GUI"""
     print("\n" + "=" * 70)
-    print("    🚀 NEYRO-INVEST - WEB GUI LAUNCHER")
+    print("    NEYRO-INVEST - WEB GUI LAUNCHER")
     print("    Запуск веб-интерфейса")
     print("=" * 70)
     
@@ -108,7 +108,7 @@ def main():
         # Проверка зависимостей
         if not check_dependencies():
             print("\n" + "!" * 70)
-            print("❌ ОШИБКА: Не все зависимости установлены!")
+            print("ОШИБКА: Не все зависимости установлены!")
             print("!" * 70)
             print("\nУстановите зависимости:")
             print("  pip install fastapi uvicorn[standard] pydantic loguru pyyaml")
@@ -127,9 +127,9 @@ def main():
         print("\n" + "=" * 70)
         print("ЗАПУСК ВЕБ-СЕРВЕРА")
         print("=" * 70)
-        print(f"\n  🌐 Адрес: http://{host}:{port}")
-        print(f"  📚 API Docs: http://{host}:{port}/docs")
-        print(f"  🔄 Redoc: http://{host}:{port}/redoc")
+        print(f"\n  Адрес: http://{host}:{port}")
+        print(f"  API Docs: http://{host}:{port}/docs")
+        print(f"  Redoc: http://{host}:{port}/redoc")
         print("\n" + "-" * 70)
         print("  Для остановки нажмите Ctrl+C")
         print("=" * 70 + "\n")
@@ -169,7 +169,7 @@ def main():
         
     except Exception as e:
         print("\n" + "!" * 70)
-        print(f"❌ КРИТИЧЕСКАЯ ОШИБКА: {e}")
+        print(f"КРИТИЧЕСКАЯ ОШИБКА: {e}")
         print("!" * 70)
         
         import traceback

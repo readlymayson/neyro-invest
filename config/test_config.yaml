@@ -10,7 +10,7 @@ data:
     - NVTK   # Новатэк
     - ROSN   # Роснефть
     - GMKN   # ГМК Норникель
-    - YNDX   # Яндекс
+    - VKCO   # ВК (вместо Яндекса)
     - MGNT   # Магнит
     - TATN   # Татнефть
     - SNGS   # Сургутнефтегаз
@@ -20,18 +20,6 @@ data:
 # Настройки нейросетей
 neural_networks:
   models:
-    - name: deepseek_analyzer
-      type: deepseek
-      weight: 0.1  # Снижен с 0.6 - DeepSeek медленный для 10 инструментов
-      enabled: true
-      api_key: ${DEEPSEEK_API_KEY}
-      base_url: "https://api.deepseek.com/v1"
-      model_name: "deepseek-chat"
-      max_tokens: 2000  # Меньше токенов для быстрого ответа
-      temperature: 0.3
-      analysis_window: 10  # Меньший период анализа
-      feature_importance_threshold: 0.1
-      
     - name: xgboost_classifier
       type: xgboost
       weight: 0.9  # Повышен с 0.4 - XGBoost быстро анализирует все 10 инструментов

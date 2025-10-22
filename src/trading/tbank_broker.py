@@ -62,9 +62,14 @@ class TBankBroker:
         self.instruments_cache: Dict[str, str] = {}  # ticker -> figi
         self.positions: Dict[str, Dict] = {}
         self.orders: Dict[str, Dict] = {}
+        self.client = None  # Сохраняем клиент для использования в веб-GUI
         
         mode = "SANDBOX" if sandbox else "PRODUCTION"
         logger.info(f"Инициализирован T-Bank брокер в режиме {mode}")
+    
+    def get_client(self):
+        """Получение клиента для использования в веб-GUI"""
+        return AsyncClient(self.token, target=self.target)
     
     async def initialize(self):
         """
@@ -77,10 +82,22 @@ class TBankBroker:
                 # Загрузка списка инструментов
                 response = await client.instruments.shares()
                 for share in response.instruments:
-                    if share.api_trade_available_flag:
-                        self.instruments_cache[share.ticker] = share.figi
+                    # В sandbox проверяем дополнительно trading_status
+                    if self.sandbox:
+                        # Для sandbox проверяем, что инструмент доступен для торговли
+                        if share.api_trade_available_flag and share.trading_status.name == 'SECURITY_TRADING_STATUS_NORMAL_TRADING':
+                            self.instruments_cache[share.ticker] = share.figi
+                    else:
+                        # Для production достаточно флага api_trade_available_flag
+                        if share.api_trade_available_flag:
+                            self.instruments_cache[share.ticker] = share.figi
                 
                 logger.info(f"Загружено {len(self.instruments_cache)} торгуемых инструментов")
+                
+                # Вывод примеров доступных тикеров для отладки
+                if self.instruments_cache:
+                    sample_tickers = list(self.instruments_cache.keys())[:10]
+                    logger.debug(f"Примеры доступных тикеров: {', '.join(sample_tickers)}")
                 
                 # Для sandbox: создание/получение счета
                 if self.sandbox:
@@ -110,17 +127,41 @@ class TBankBroker:
             client: Клиент T-Bank API
         """
         if not self.account_id:
-            # Создание нового счета в песочнице
-            response = await client.sandbox.open_sandbox_account()
-            self.account_id = response.account_id
-            logger.info(f"Создан новый sandbox счет: {self.account_id}")
-            
-            # Пополнение счета (по умолчанию 1 млн рублей)
-            await client.sandbox.sandbox_pay_in(
-                account_id=self.account_id,
-                amount=self._money_value(1_000_000, "rub")
-            )
-            logger.info("Счет пополнен на 1,000,000 RUB")
+            try:
+                # Сначала проверяем существующие sandbox аккаунты
+                accounts_response = await client.sandbox.get_sandbox_accounts()
+                if accounts_response.accounts:
+                    # Используем первый доступный аккаунт
+                    self.account_id = accounts_response.accounts[0].id
+                    logger.info(f"Используется существующий sandbox счет: {self.account_id}")
+                else:
+                    # Создание нового счета в песочнице
+                    response = await client.sandbox.open_sandbox_account()
+                    self.account_id = response.account_id
+                    logger.info(f"Создан новый sandbox счет: {self.account_id}")
+                    
+                    # Пополнение счета (по умолчанию 1 млн рублей)
+                    await client.sandbox.sandbox_pay_in(
+                        account_id=self.account_id,
+                        amount=self._money_value(1_000_000, "rub")
+                    )
+                    logger.info("Счет пополнен на 1,000,000 RUB")
+            except Exception as e:
+                if "Sandbox accounts limit reached" in str(e):
+                    logger.warning("Достигнут лимит sandbox аккаунтов, попытка использовать существующий...")
+                    # Попробуем получить существующие аккаунты еще раз
+                    try:
+                        accounts_response = await client.sandbox.get_sandbox_accounts()
+                        if accounts_response.accounts:
+                            self.account_id = accounts_response.accounts[0].id
+                            logger.info(f"Используется существующий sandbox счет: {self.account_id}")
+                        else:
+                            raise e
+                    except Exception as e2:
+                        logger.error(f"Не удалось получить существующие sandbox аккаунты: {e2}")
+                        raise e
+                else:
+                    raise e
         else:
             logger.info(f"Используется существующий sandbox счет: {self.account_id}")
     
@@ -180,7 +221,10 @@ class TBankBroker:
         try:
             figi = self.instruments_cache.get(ticker)
             if not figi:
-                logger.error(f"FIGI не найден для тикера {ticker}")
+                logger.warning(
+                    f"Инструмент {ticker} недоступен для торговли в {'sandbox' if self.sandbox else 'production'}. "
+                    f"Доступно {len(self.instruments_cache)} инструментов."
+                )
                 return None
             
             # Конвертация параметров
@@ -528,6 +572,27 @@ class TBankBroker:
         if hasattr(money_value, 'units') and hasattr(money_value, 'nano'):
             return money_value.units + money_value.nano / 1_000_000_000
         return 0.0
+    
+    def get_available_tickers(self) -> List[str]:
+        """
+        Получение списка доступных для торговли тикеров
+        
+        Returns:
+            Список тикеров
+        """
+        return list(self.instruments_cache.keys())
+    
+    def is_ticker_available(self, ticker: str) -> bool:
+        """
+        Проверка доступности тикера для торговли
+        
+        Args:
+            ticker: Тикер инструмента
+            
+        Returns:
+            True если тикер доступен для торговли
+        """
+        return ticker in self.instruments_cache
     
     def get_status(self) -> Dict:
         """

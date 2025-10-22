@@ -124,6 +124,8 @@ body {
     color: var(--text-secondary);
     transition: all 0.3s;
     border-bottom: 3px solid transparent;
+    position: relative;
+    z-index: 1;
 }
 
 .tab-btn:hover {
@@ -215,6 +217,10 @@ body {
 
 .negative {
     color: #f44336;
+}
+
+.warning {
+    color: #ff9800;
 }
 
 /* Charts */

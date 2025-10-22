@@ -91,6 +91,9 @@ class PortfolioManager:
         self.current_metrics: Optional[PortfolioMetrics] = None
         self.risk_metrics: Dict[str, float] = {}
         
+        # Провайдер данных (будет установлен через set_data_provider)
+        self.data_provider = None
+        
         logger.info(f"Менеджер портфеля инициализирован с капиталом {self.initial_capital}")
     
     async def initialize(self):
@@ -210,9 +213,39 @@ class PortfolioManager:
         Returns:
             Текущая цена
         """
-        # Здесь должна быть интеграция с провайдером данных
-        # Пока возвращаем фиктивную цену
-        return 100.0
+        try:
+            # Получение цены из провайдера данных
+            if self.data_provider:
+                realtime_data = await self.data_provider.get_latest_data(symbol)
+                price = realtime_data.get('realtime', {}).get('price', 0.0)
+                if price > 0:
+                    return price
+                logger.warning(f"Не удалось получить реальную цену для {symbol}, используем последнюю известную")
+            
+            # Если нет провайдера или данных - используем среднюю цену покупки
+            if symbol in self.positions:
+                return self.positions[symbol].average_price
+            
+            # Fallback - возвращаем 100
+            logger.warning(f"Нет данных о цене для {symbol}, используем 100.0")
+            return 100.0
+            
+        except Exception as e:
+            logger.error(f"Ошибка получения цены для {symbol}: {e}")
+            # В случае ошибки возвращаем последнюю известную цену
+            if symbol in self.positions:
+                return self.positions[symbol].current_price
+            return 100.0
+    
+    def set_data_provider(self, data_provider):
+        """
+        Установка провайдера данных
+        
+        Args:
+            data_provider: Провайдер данных
+        """
+        self.data_provider = data_provider
+        logger.debug("Провайдер данных установлен в менеджере портфеля")
     
     async def add_transaction(self, transaction_data: Dict[str, Any]):
         """

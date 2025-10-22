@@ -5,14 +5,20 @@
 
 import asyncio
 import os
+import sys
 from dotenv import load_dotenv
 from loguru import logger
+
+# Установка кодировки для Windows
+if sys.platform == 'win32':
+    import codecs
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
 
 # Загрузка переменных окружения
 load_dotenv()
 
 # Добавление путей для импорта
-import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.data.tbank_data_provider import TBankDataProvider

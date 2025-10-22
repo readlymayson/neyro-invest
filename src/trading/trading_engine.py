@@ -277,8 +277,11 @@ class TradingEngine:
             if 'error' in prediction:
                 return None
             
-            # Определение символа (используем первый доступный)
-            symbol = 'SBER'  # По умолчанию
+            # Определение символа из предсказания
+            symbol = prediction.get('symbol', 'UNKNOWN')
+            if symbol == 'UNKNOWN':
+                logger.warning(f"Предсказание без символа: {prediction}")
+                return None
             
             # Извлечение сигнала
             signal = prediction.get('signal', 'HOLD')
@@ -444,6 +447,15 @@ class TradingEngine:
         try:
             if signal.signal == 'HOLD':
                 return
+            
+            # Проверка доступности инструмента в брокере
+            if self.broker_type in ['tinkoff', 'tbank'] and self.tbank_broker:
+                if not self.tbank_broker.is_ticker_available(signal.symbol):
+                    logger.debug(
+                        f"Инструмент {signal.symbol} недоступен для торговли в T-Bank. "
+                        f"Пропускаем сигнал."
+                    )
+                    return
             
             # Проверка на запрет коротких продаж (маржинальной торговли)
             if signal.signal == 'SELL':

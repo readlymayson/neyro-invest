@@ -65,9 +65,11 @@ createApp({
         console.log('🚀 Neyro-Invest Web GUI загружен');
         
         // Загрузка данных
+        this.loadSystemStatus();
         this.loadPortfolio();
         this.loadSignals();
         this.loadConfig();
+        this.loadTbankToken();
         
         // Подключение WebSocket
         this.connectWebSocket();
@@ -80,6 +82,7 @@ createApp({
         // Автообновление
         setInterval(() => {
             this.lastUpdate = new Date().toISOString();
+            this.loadSystemStatus(); // Проверка статуса системы
             if (this.autoRefreshLogs) {
                 this.loadLogs();
             }
@@ -96,14 +99,23 @@ createApp({
     },
     
     methods: {
+        // Переключение вкладок
+        switchTab(tabId) {
+            console.log('🔄 Переключение на вкладку:', tabId);
+            this.currentTab = tabId;
+        },
+        
         // Форматирование валюты
         formatCurrency(value) {
+            if (value === null || value === undefined || isNaN(value) || value === 'не число') {
+                return '0 ₽';
+            }
             return new Intl.NumberFormat('ru-RU', {
                 style: 'currency',
                 currency: 'RUB',
                 minimumFractionDigits: 0,
                 maximumFractionDigits: 0
-            }).format(value);
+            }).format(Number(value));
         },
         
         // Форматирование времени
@@ -118,6 +130,28 @@ createApp({
                 minute: '2-digit',
                 second: '2-digit'
             });
+        },
+        
+        // Получение текста режима данных
+        getModeText(mode) {
+            const modes = {
+                'real': 'T-Bank API',
+                'system': 'Торговая система',
+                'file': 'Сохраненные данные',
+                'demo': 'Демо данные'
+            };
+            return modes[mode] || 'Неизвестно';
+        },
+        
+        // Получение CSS класса для режима
+        getModeClass(mode) {
+            const classes = {
+                'real': 'positive',
+                'system': 'positive',
+                'file': 'warning',
+                'demo': 'negative'
+            };
+            return classes[mode] || '';
         },
         
         // WebSocket подключение
@@ -167,10 +201,25 @@ createApp({
             switch (message.type) {
                 case 'portfolio_update':
                     this.portfolio = { ...this.portfolio, ...message.data };
+                    console.log('📊 Портфель обновлен через WebSocket');
+                    this.$nextTick(() => {
+                        this.updateCharts();
+                    });
                     break;
                     
                 case 'system_status':
+                    const wasRunning = this.systemRunning;
                     this.systemRunning = message.data.is_running;
+                    if (wasRunning !== this.systemRunning) {
+                        console.log('🔄 Статус системы изменен:', this.systemRunning ? 'Запущена' : 'Остановлена');
+                    }
+                    break;
+                    
+                case 'signals_update':
+                    if (message.data && message.data.length > 0) {
+                        this.signals = message.data;
+                        console.log('📡 Сигналы обновлены через WebSocket:', message.data.length);
+                    }
                     break;
                     
                 case 'new_signal':
@@ -178,11 +227,29 @@ createApp({
                     if (this.signals.length > 50) {
                         this.signals = this.signals.slice(0, 50);
                     }
+                    console.log('🆕 Новый сигнал:', message.data);
                     break;
                     
                 case 'pong':
                     // Ответ на ping
                     break;
+                    
+                default:
+                    console.log('❓ Неизвестный тип сообщения:', message.type);
+            }
+        },
+        
+        // Загрузка статуса системы
+        async loadSystemStatus() {
+            try {
+                const response = await fetch('/api/system/status');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.systemRunning = data.is_running;
+                    console.log('✅ Статус системы:', data.is_running ? 'Запущена' : 'Остановлена');
+                }
+            } catch (error) {
+                console.error('❌ Ошибка загрузки статуса:', error);
             }
         },
         
@@ -192,8 +259,35 @@ createApp({
                 const response = await fetch('/api/portfolio');
                 if (response.ok) {
                     const data = await response.json();
-                    this.portfolio = { ...this.portfolio, ...data };
-                    console.log('✅ Портфель загружен');
+                    
+                    // Очистка некорректных данных
+                    const cleanData = {
+                        total_value: Number(data.total_value) || 0,
+                        cash_balance: Number(data.cash_balance) || 0,
+                        invested_value: Number(data.invested_value) || 0,
+                        total_pnl: Number(data.total_pnl) || 0,
+                        total_pnl_percent: Number(data.total_pnl_percent) || 0,
+                        positions_count: Number(data.positions_count) || 0,
+                        positions: Array.isArray(data.positions) ? data.positions.map(pos => ({
+                            ...pos,
+                            quantity: Number(pos.quantity) || 0,
+                            avg_price: Number(pos.avg_price) || 0,
+                            current_price: Number(pos.current_price) || 0,
+                            value: Number(pos.value) || 0,
+                            pnl: Number(pos.pnl) || 0,
+                            pnl_percent: Number(pos.pnl_percent) || 0,
+                            weight_percent: Number(pos.weight_percent) || 0
+                        })) : [],
+                        last_update: data.last_update || new Date().toISOString()
+                    };
+                    
+                    this.portfolio = { ...this.portfolio, ...cleanData };
+                    console.log('✅ Портфель загружен:', cleanData);
+                    
+                    // Обновление графиков при изменении данных
+                    this.$nextTick(() => {
+                        this.updateCharts();
+                    });
                 }
             } catch (error) {
                 console.error('❌ Ошибка загрузки портфеля:', error);
@@ -232,6 +326,22 @@ createApp({
                 }
             } catch (error) {
                 console.error('❌ Ошибка загрузки конфигурации:', error);
+            }
+        },
+        
+        // Загрузка токена T-Bank
+        async loadTbankToken() {
+            try {
+                const response = await fetch('/api/tbank-token');
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.token) {
+                        this.config.tbank_token = data.token;
+                        console.log(`✅ T-Bank токен загружен из ${data.source}`);
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Ошибка загрузки токена T-Bank:', error);
             }
         },
         
@@ -414,6 +524,23 @@ createApp({
             this.initAssetsChart();
         },
         
+        // Обновление графиков
+        updateCharts() {
+            // Пересоздание графиков с новыми данными
+            const portfolioCanvas = document.getElementById('portfolioChart');
+            const assetsCanvas = document.getElementById('assetsChart');
+            
+            if (portfolioCanvas && assetsCanvas) {
+                // Уничтожение старых графиков если они существуют
+                Chart.getChart('portfolioChart')?.destroy();
+                Chart.getChart('assetsChart')?.destroy();
+                
+                // Создание новых графиков
+                this.initPortfolioChart();
+                this.initAssetsChart();
+            }
+        },
+        
         // График портфеля
         initPortfolioChart() {
             const canvas = document.getElementById('portfolioChart');
@@ -472,7 +599,7 @@ createApp({
                             beginAtZero: false,
                             ticks: {
                                 callback: (value) => {
-                                    return (value / 1000).toFixed(0) + 'K';
+                                    return ((value || 0) / 1000).toFixed(0) + 'K';
                                 }
                             }
                         }
@@ -519,7 +646,7 @@ createApp({
                                     const label = context.label || '';
                                     const value = this.formatCurrency(context.parsed);
                                     const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                    const percent = ((context.parsed / total) * 100).toFixed(1);
+                                    const percent = (((context.parsed || 0) / (total || 1)) * 100).toFixed(1);
                                     return `${label}: ${value} (${percent}%)`;
                                 }
                             }

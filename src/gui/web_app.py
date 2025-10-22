@@ -13,6 +13,15 @@ from datetime import datetime
 from pathlib import Path
 import json
 import asyncio
+
+# Модели для API запросов
+class TbankCheckRequest(BaseModel):
+    token: str
+    sandbox: bool = True
+
+class TbankBalanceRequest(BaseModel):
+    token: str
+    sandbox: bool = True
 from loguru import logger
 import os
 
@@ -23,6 +32,7 @@ try:
     from ..portfolio.portfolio_manager import PortfolioManager
     from ..neural_networks.network_manager import NetworkManager
     from ..trading.trading_engine import TradingEngine
+    from tinkoff.invest import AsyncClient
     SYSTEM_AVAILABLE = True
     logger.info("Системные модули загружены успешно")
 except ImportError as e:
@@ -147,24 +157,41 @@ async def health_check():
 async def get_system_status():
     """Получение статуса системы"""
     try:
-        # Проверка реального состояния процесса
-        import psutil
-        system_process_running = False
-        
-        # Проверяем, запущен ли основной процесс инвестиционной системы
-        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+        # Сначала проверяем внутреннее состояние investment_system
+        if app_state["investment_system"]:
             try:
-                cmdline = proc.info.get('cmdline', [])
-                if cmdline and any('investment_system' in str(arg).lower() or 'run.py' in str(arg) for arg in cmdline):
-                    system_process_running = True
-                    break
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
+                # Проверяем, действительно ли система запущена
+                is_running = hasattr(app_state["investment_system"], 'is_running') and app_state["investment_system"].is_running
+                if is_running != app_state["system_running"]:
+                    app_state["system_running"] = is_running
+                    logger.info(f"Синхронизация статуса: {'Запущена' if is_running else 'Остановлена'}")
+            except Exception as e:
+                logger.warning(f"Ошибка проверки статуса investment_system: {e}")
         
-        # Синхронизируем состояние
-        if system_process_running and not app_state["system_running"]:
-            app_state["system_running"] = True
-            logger.info("Обнаружен запущенный процесс системы")
+        # Проверка реального состояния процесса (только если система не запущена внутренне)
+        if not app_state["system_running"]:
+            try:
+                import psutil
+                system_process_running = False
+                
+                # Проверяем, запущен ли основной процесс инвестиционной системы
+                for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                    try:
+                        cmdline = proc.info.get('cmdline', [])
+                        if cmdline and any('investment_system' in str(arg).lower() or 'run.py' in str(arg) for arg in cmdline):
+                            system_process_running = True
+                            break
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+                
+                # Синхронизируем состояние
+                if system_process_running and not app_state["system_running"]:
+                    app_state["system_running"] = True
+                    logger.info("Обнаружен запущенный процесс системы")
+            except ImportError:
+                logger.warning("psutil не установлен, пропускаем проверку процессов")
+            except Exception as e:
+                logger.warning(f"Ошибка проверки процессов: {e}")
         
         if app_state["broker"]:
             status = app_state["broker"].get_status()
@@ -303,10 +330,119 @@ async def stop_system():
 async def get_portfolio():
     """Получение данных портфеля"""
     try:
-        # Если система запущена, получаем реальные данные
-        if app_state["portfolio_manager"]:
+        # Если есть брокер, получаем реальные данные из T-Bank
+        if app_state["broker"]:
+            logger.info("📊 Получение данных из T-Bank API")
             try:
-                portfolio_data = app_state["portfolio_manager"].get_portfolio_summary()
+                # Получаем реальные данные из T-Bank
+                async with AsyncClient(app_state["broker"].token, target=app_state["broker"].target) as client:
+                    # Используем правильные методы API
+                    if app_state["broker"].sandbox:
+                        positions_response = await client.sandbox.get_sandbox_positions(
+                            account_id=app_state["broker"].account_id
+                        )
+                        
+                        portfolio_response = await client.sandbox.get_sandbox_portfolio(
+                            account_id=app_state["broker"].account_id
+                        )
+                    else:
+                        positions_response = await client.operations.get_positions(
+                            account_id=app_state["broker"].account_id
+                        )
+                        
+                        portfolio_response = await client.operations.get_portfolio(
+                            account_id=app_state["broker"].account_id
+                        )
+                    
+                    # Получаем маппинг FIGI -> тикер
+                    shares_response = await client.instruments.shares()
+                    figi_to_ticker = {share.figi: share.ticker for share in shares_response.instruments}
+                    
+                    # Обработка денежных средств
+                    cash_balance = 0
+                    if positions_response.money:
+                        for money in positions_response.money:
+                            if money.currency.lower() == 'rub':
+                                cash_balance = money.units + money.nano / 1_000_000_000
+                    
+                    # Обработка позиций
+                    positions = []
+                    total_value = 0
+                    total_pnl = 0
+                    
+                    if portfolio_response.positions:
+                        for position in portfolio_response.positions:
+                            ticker = figi_to_ticker.get(position.figi, position.figi[:8])
+                            quantity = float(position.quantity.units + position.quantity.nano / 1_000_000_000)
+                            
+                            avg_price = 0
+                            if hasattr(position, 'average_position_price'):
+                                avg_price = position.average_position_price.units + position.average_position_price.nano / 1_000_000_000
+                            
+                            current_price = 0
+                            if hasattr(position, 'current_price'):
+                                current_price = position.current_price.units + position.current_price.nano / 1_000_000_000
+                            
+                            value = quantity * current_price
+                            total_value += value
+                            
+                            # Расчет P&L
+                            pnl = 0
+                            pnl_percent = 0
+                            if avg_price > 0:
+                                cost = quantity * avg_price
+                                pnl = value - cost
+                                pnl_percent = (pnl / cost) * 100 if cost > 0 else 0
+                                total_pnl += pnl
+                            
+                            positions.append({
+                                "symbol": ticker,
+                                "name": ticker,
+                                "quantity": quantity,
+                                "avg_price": avg_price,
+                                "current_price": current_price,
+                                "value": value,
+                                "pnl": pnl,
+                                "pnl_percent": pnl_percent,
+                                "weight_percent": (value / (total_value + cash_balance)) * 100 if (total_value + cash_balance) > 0 else 0
+                            })
+                    
+                    portfolio_data = {
+                        "total_value": total_value + cash_balance,
+                        "cash_balance": cash_balance,
+                        "invested_value": total_value,
+                        "total_pnl": total_pnl,
+                        "total_pnl_percent": (total_pnl / total_value) * 100 if total_value > 0 else 0,
+                        "positions_count": len(positions),
+                        "positions": positions,
+                        "last_update": datetime.now().isoformat(),
+                        "mode": "real"
+                    }
+                
+                app_state["last_portfolio_update"] = datetime.now()
+                return portfolio_data
+                
+            except Exception as e:
+                logger.warning(f"Ошибка получения данных из T-Bank: {e}")
+        
+        # Если система запущена, получаем данные из portfolio_manager
+        if app_state["portfolio_manager"]:
+            logger.info("📊 Получение данных из торговой системы")
+            try:
+                status = app_state["portfolio_manager"].get_status()
+                
+                portfolio_data = {
+                    "total_value": status.get("total_value", 0),
+                    "cash_balance": status.get("cash", 0),
+                    "invested_value": status.get("invested", 0),
+                    "total_pnl": status.get("total_pnl", 0),
+                    "total_pnl_percent": status.get("total_pnl_percent", 0),
+                    "positions_count": len(status.get("positions", [])),
+                    "positions": status.get("positions", []),
+                    "last_update": datetime.now().isoformat(),
+                    "mode": "system"
+                }
+                
                 app_state["last_portfolio_update"] = datetime.now()
                 return portfolio_data
             except Exception as e:
@@ -315,16 +451,18 @@ async def get_portfolio():
         # Попытка загрузить из файла
         portfolio_file = Path("data/portfolio.json")
         if portfolio_file.exists():
+            logger.info("📊 Загрузка данных из файла")
             try:
                 with open(portfolio_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     data["last_update"] = datetime.now().isoformat()
+                    data["mode"] = "file"
                     return data
             except Exception as e:
                 logger.warning(f"Ошибка чтения файла портфеля: {e}")
         
         # Возвращаем demo данные
-        logger.info("Возвращаем demo данные портфеля")
+        logger.info("📊 Возвращаем demo данные портфеля")
         return {
             "total_value": 1000000,
             "cash_balance": 100000,
@@ -347,10 +485,14 @@ async def get_signals(limit: int = 20):
         # Если система запущена, получаем реальные сигналы
         if app_state["trading_engine"]:
             try:
-                signals = await app_state["trading_engine"].get_recent_signals(limit)
-                app_state["last_signals_update"] = datetime.now()
-                app_state["signals"] = signals
-                return signals
+                # Пытаемся получить сигналы через trading_signals атрибут
+                if hasattr(app_state["trading_engine"], 'trading_signals'):
+                    signals = list(app_state["trading_engine"].trading_signals)[-limit:]
+                    app_state["last_signals_update"] = datetime.now()
+                    app_state["signals"] = signals
+                    return signals
+                else:
+                    logger.debug("trading_engine не имеет атрибута trading_signals")
             except Exception as e:
                 logger.warning(f"Ошибка получения сигналов из trading_engine: {e}")
         
@@ -375,23 +517,25 @@ async def get_signals(limit: int = 20):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/tbank/check")
-async def check_tbank_connection(token: str, sandbox: bool = True):
+async def check_tbank_connection(request: TbankCheckRequest):
     """Проверка подключения к T-Bank API"""
     try:
         if not SYSTEM_AVAILABLE:
             raise HTTPException(status_code=503, detail="Системные модули недоступны")
         
-        broker = TBankBroker(token=token, sandbox=sandbox)
+        broker = TBankBroker(token=request.token, sandbox=request.sandbox)
         await broker.initialize()
         
         balance = await broker.get_total_balance_rub()
         status = broker.get_status()
         
+        # Сохраняем брокера в глобальном состоянии
         app_state["broker"] = broker
+        logger.info(f"✅ T-Bank брокер инициализирован: {status.get('account_id')}")
         
         return {
             "success": True,
-            "mode": "sandbox" if sandbox else "production",
+            "mode": "sandbox" if request.sandbox else "production",
             "account_id": status.get("account_id"),
             "balance": balance,
             "instruments": status.get("instruments_loaded", 0)
@@ -401,13 +545,13 @@ async def check_tbank_connection(token: str, sandbox: bool = True):
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/api/tbank/get-balance")
-async def get_tbank_balance(token: str, sandbox: bool = True):
+async def get_tbank_balance(request: TbankBalanceRequest):
     """Получение баланса с T-Bank счета"""
     try:
         if not SYSTEM_AVAILABLE:
             raise HTTPException(status_code=503, detail="Системные модули недоступны")
         
-        broker = TBankBroker(token=token, sandbox=sandbox)
+        broker = TBankBroker(token=request.token, sandbox=request.sandbox)
         await broker.initialize()
         balance = await broker.get_total_balance_rub()
         
@@ -435,6 +579,30 @@ async def get_config():
         logger.error(f"Ошибка загрузки конфигурации: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/tbank-token")
+async def get_tbank_token():
+    """Получение токена T-Bank из переменных окружения"""
+    try:
+        # Проверяем переменные окружения
+        token = os.getenv("TINKOFF_TOKEN")
+        if token:
+            return {"token": token, "source": "environment"}
+        
+        # Проверяем .env файл
+        env_file = Path(".env")
+        if env_file.exists():
+            with open(env_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if line.strip().startswith("TINKOFF_TOKEN="):
+                        token = line.split("=", 1)[1].strip().strip('"').strip("'")
+                        if token:
+                            return {"token": token, "source": "env_file"}
+        
+        return {"token": "", "source": "none"}
+    except Exception as e:
+        logger.error(f"Ошибка получения токена T-Bank: {e}")
+        return {"token": "", "source": "error"}
+
 @app.post("/api/config")
 async def save_config(config: dict):
     """Сохранение конфигурации"""
@@ -457,12 +625,30 @@ async def get_logs(lines: int = 100):
         if not log_file.exists():
             return {"logs": []}
         
-        with open(log_file, 'r', encoding='utf-8') as f:
-            log_lines = f.readlines()
-            return {"logs": log_lines[-lines:]}
+        # Попробуем разные кодировки
+        encodings = ['utf-8', 'cp1251', 'latin-1', 'utf-8-sig']
+        log_lines = []
+        
+        for encoding in encodings:
+            try:
+                with open(log_file, 'r', encoding=encoding) as f:
+                    log_lines = f.readlines()
+                    break
+            except UnicodeDecodeError:
+                continue
+        
+        if not log_lines:
+            # Если все кодировки не сработали, читаем как бинарный файл и декодируем с ошибками
+            with open(log_file, 'rb') as f:
+                content = f.read()
+                # Декодируем с игнорированием ошибок
+                text = content.decode('utf-8', errors='ignore')
+                log_lines = text.splitlines()
+        
+        return {"logs": log_lines[-lines:]}
     except Exception as e:
         logger.error(f"Ошибка загрузки логов: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"logs": [f"Ошибка загрузки логов: {str(e)}"]}
 
 @app.get("/api/system/info")
 async def get_system_info():
@@ -513,10 +699,10 @@ async def get_system_metrics():
         # Добавляем метрики портфеля
         if app_state["portfolio_manager"]:
             try:
-                portfolio_data = app_state["portfolio_manager"].get_portfolio_summary()
-                metrics["portfolio"]["total_value"] = portfolio_data.get("total_value", 0)
-                metrics["portfolio"]["total_pnl"] = portfolio_data.get("total_pnl", 0)
-                metrics["portfolio"]["positions_count"] = portfolio_data.get("positions_count", 0)
+                status = app_state["portfolio_manager"].get_status()
+                metrics["portfolio"]["total_value"] = status.get("total_value", 0)
+                metrics["portfolio"]["total_pnl"] = status.get("total_pnl", 0)
+                metrics["portfolio"]["positions_count"] = len(status.get("positions", []))
             except:
                 pass
         
@@ -624,6 +810,35 @@ async def startup_event():
                 pass
     except Exception as e:
         logger.warning(f"Не удалось проверить статус системы при запуске: {e}")
+    
+    # Попытка автоматической инициализации T-Bank брокера
+    try:
+        if SYSTEM_AVAILABLE:
+            # Проверяем наличие токена в переменных окружения
+            token = os.getenv('TINKOFF_TOKEN')
+            if not token:
+                # Проверяем .env файл
+                env_file = Path('.env')
+                if env_file.exists():
+                    with open(env_file, 'r', encoding='utf-8') as f:
+                        for line in f:
+                            if line.strip() and not line.startswith('#'):
+                                if '=' in line:
+                                    key, value = line.strip().split('=', 1)
+                                    if key.strip() == 'TINKOFF_TOKEN':
+                                        token = value.strip().strip('"').strip("'")
+                                        break
+            
+            if token:
+                logger.info("Найден T-Bank токен, инициализация брокера...")
+                broker = TBankBroker(token=token, sandbox=True)
+                await broker.initialize()
+                app_state["broker"] = broker
+                logger.info("✅ T-Bank брокер автоматически инициализирован")
+            else:
+                logger.info("T-Bank токен не найден, пропускаем автоматическую инициализацию")
+    except Exception as e:
+        logger.warning(f"Не удалось автоматически инициализировать T-Bank брокера: {e}")
     
     # Запуск фоновой задачи
     asyncio.create_task(broadcast_updates())

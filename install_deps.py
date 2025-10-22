@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Скрипт для установки зависимостей проекта нейро-инвестиций
 """
@@ -6,6 +7,12 @@
 import subprocess
 import sys
 import os
+
+# Установка кодировки для Windows
+if sys.platform == 'win32':
+    import codecs
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
 
 def run_command(command):
     """Выполняет команду и возвращает результат"""

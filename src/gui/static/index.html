@@ -31,7 +31,7 @@
             <button 
                 v-for="tab in tabs" 
                 :key="tab.id"
-                @click="currentTab = tab.id"
+                @click="switchTab(tab.id)"
                 :class="['tab-btn', currentTab === tab.id ? 'active' : '']">
                 {{ tab.icon }} {{ tab.name }}
             </button>
@@ -49,7 +49,7 @@
                         <div class="card-value">{{ formatCurrency(portfolio.total_value) }}</div>
                         <div class="card-change" :class="portfolio.total_pnl >= 0 ? 'positive' : 'negative'">
                             {{ portfolio.total_pnl >= 0 ? '▲' : '▼' }} {{ formatCurrency(portfolio.total_pnl) }} 
-                            ({{ portfolio.total_pnl_percent.toFixed(2) }}%)
+                            ({{ (portfolio.total_pnl_percent || 0).toFixed(2) }}%)
                         </div>
                     </div>
 
@@ -57,7 +57,7 @@
                         <div class="card-header">💵 Доступные средства</div>
                         <div class="card-value">{{ formatCurrency(portfolio.cash_balance) }}</div>
                         <div class="card-info">
-                            {{ ((portfolio.cash_balance / portfolio.total_value) * 100).toFixed(1) }}% от портфеля
+                            {{ ((portfolio.cash_balance / (portfolio.total_value || 1)) * 100).toFixed(1) }}% от портфеля
                         </div>
                     </div>
 
@@ -65,15 +65,23 @@
                         <div class="card-header">📈 Инвестировано</div>
                         <div class="card-value">{{ formatCurrency(portfolio.invested_value) }}</div>
                         <div class="card-info">
-                            {{ ((portfolio.invested_value / portfolio.total_value) * 100).toFixed(1) }}% от портфеля
+                            {{ ((portfolio.invested_value / (portfolio.total_value || 1)) * 100).toFixed(1) }}% от портфеля
                         </div>
                     </div>
 
-                    <div class="card">
-                        <div class="card-header">📦 Позиций в портфеле</div>
-                        <div class="card-value">{{ portfolio.positions_count }}</div>
-                        <div class="card-info">Активных позиций</div>
+                <div class="card">
+                    <div class="card-header">📦 Позиций в портфеле</div>
+                    <div class="card-value">{{ portfolio.positions_count }}</div>
+                    <div class="card-info">Активных позиций</div>
+                </div>
+                
+                <div class="card" v-if="portfolio.mode">
+                    <div class="card-header">📊 Источник данных</div>
+                    <div class="card-value" :class="getModeClass(portfolio.mode)">
+                        {{ getModeText(portfolio.mode) }}
                     </div>
+                    <div class="card-info">Режим отображения</div>
+                </div>
                 </div>
 
                 <div class="charts-grid">
@@ -130,7 +138,7 @@
                                             {{ signal.signal }}
                                         </span>
                                     </td>
-                                    <td>{{ (signal.confidence * 100).toFixed(1) }}%</td>
+                                    <td>{{ ((signal.confidence || 0) * 100).toFixed(1) }}%</td>
                                     <td>{{ signal.source }}</td>
                                     <td>
                                         <span :class="['status-badge-small', signal.executed ? 'executed' : 'pending']">
@@ -159,7 +167,7 @@
                     <div class="summary-item">
                         <span>P&L:</span>
                         <strong :class="portfolio.total_pnl >= 0 ? 'positive' : 'negative'">
-                            {{ formatCurrency(portfolio.total_pnl) }} ({{ portfolio.total_pnl_percent.toFixed(2) }}%)
+                            {{ formatCurrency(portfolio.total_pnl) }} ({{ (portfolio.total_pnl_percent || 0).toFixed(2) }}%)
                         </strong>
                     </div>
                     <div class="summary-item">
@@ -193,9 +201,9 @@
                                 <td :class="position.pnl >= 0 ? 'positive' : 'negative'">
                                     {{ formatCurrency(position.pnl) }}
                                     <br>
-                                    <small>({{ position.pnl_percent.toFixed(2) }}%)</small>
+                                    <small>({{ (position.pnl_percent || 0).toFixed(2) }}%)</small>
                                 </td>
-                                <td>{{ position.weight_percent.toFixed(2) }}%</td>
+                                <td>{{ (position.weight_percent || 0).toFixed(2) }}%</td>
                             </tr>
                             <tr v-if="!portfolio.positions || portfolio.positions.length === 0">
                                 <td colspan="8" class="empty-state">Позиций в портфеле нет</td>
