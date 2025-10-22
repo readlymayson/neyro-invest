@@ -22,7 +22,7 @@ neural_networks:
   models:
     - name: deepseek_analyzer
       type: deepseek
-      weight: 0.6
+      weight: 0.1  # Снижен с 0.6 - DeepSeek медленный для 10 инструментов
       enabled: true
       api_key: ${DEEPSEEK_API_KEY}
       base_url: "https://api.deepseek.com/v1"
@@ -34,7 +34,7 @@ neural_networks:
       
     - name: xgboost_classifier
       type: xgboost
-      weight: 0.4
+      weight: 0.9  # Повышен с 0.4 - XGBoost быстро анализирует все 10 инструментов
       enabled: true
       n_estimators: 50   # Меньше деревьев для быстрого обучения
       max_depth: 4       # Меньшая глубина

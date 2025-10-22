@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neyro-Invest - Нейросетевая торговая система</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <h1>🚀 Neyro-Invest</h1>
+                    <p class="subtitle">Нейросетевая торговая система T-Bank</p>
+                </div>
+                <div class="status-indicator">
+                    <div class="status-badge" :class="systemRunning ? 'status-active' : 'status-inactive'">
+                        <span class="status-dot"></span>
+                        {{ systemRunning ? 'Система активна' : 'Система остановлена' }}
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="nav-tabs">
+            <button 
+                v-for="tab in tabs" 
+                :key="tab.id"
+                @click="currentTab = tab.id"
+                :class="['tab-btn', currentTab === tab.id ? 'active' : '']">
+                {{ tab.icon }} {{ tab.name }}
+            </button>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard Tab -->
+            <div v-show="currentTab === 'dashboard'" class="tab-content">
+                <h2>📊 Дашборд</h2>
+                
+                <div class="cards-grid">
+                    <div class="card">
+                        <div class="card-header">💰 Общая стоимость портфеля</div>
+                        <div class="card-value">{{ formatCurrency(portfolio.total_value) }}</div>
+                        <div class="card-change" :class="portfolio.total_pnl >= 0 ? 'positive' : 'negative'">
+                            {{ portfolio.total_pnl >= 0 ? '▲' : '▼' }} {{ formatCurrency(portfolio.total_pnl) }} 
+                            ({{ portfolio.total_pnl_percent.toFixed(2) }}%)
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">💵 Доступные средства</div>
+                        <div class="card-value">{{ formatCurrency(portfolio.cash_balance) }}</div>
+                        <div class="card-info">
+                            {{ ((portfolio.cash_balance / portfolio.total_value) * 100).toFixed(1) }}% от портфеля
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">📈 Инвестировано</div>
+                        <div class="card-value">{{ formatCurrency(portfolio.invested_value) }}</div>
+                        <div class="card-info">
+                            {{ ((portfolio.invested_value / portfolio.total_value) * 100).toFixed(1) }}% от портфеля
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">📦 Позиций в портфеле</div>
+                        <div class="card-value">{{ portfolio.positions_count }}</div>
+                        <div class="card-info">Активных позиций</div>
+                    </div>
+                </div>
+
+                <div class="charts-grid">
+                    <div class="chart-container">
+                        <h3>График портфеля</h3>
+                        <canvas id="portfolioChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h3>Распределение активов</h3>
+                        <canvas id="assetsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trading Tab -->
+            <div v-show="currentTab === 'trading'" class="tab-content">
+                <h2>⚡ Торговля</h2>
+                
+                <div class="control-panel">
+                    <button 
+                        @click="startSystem" 
+                        :disabled="systemRunning"
+                        class="btn btn-success">
+                        ▶️ Запустить систему
+                    </button>
+                    <button 
+                        @click="stopSystem" 
+                        :disabled="!systemRunning"
+                        class="btn btn-danger">
+                        ⏸️ Остановить систему
+                    </button>
+                </div>
+
+                <div class="signals-section">
+                    <h3>Последние торговые сигналы</h3>
+                    <div class="table-container">
+                        <table class="signals-table">
+                            <thead>
+                                <tr>
+                                    <th>Время</th>
+                                    <th>Тикер</th>
+                                    <th>Сигнал</th>
+                                    <th>Уверенность</th>
+                                    <th>Источник</th>
+                                    <th>Статус</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="signal in signals" :key="signal.timestamp + signal.symbol">
+                                    <td>{{ formatTime(signal.timestamp) }}</td>
+                                    <td><strong>{{ signal.symbol }}</strong></td>
+                                    <td>
+                                        <span :class="['signal-badge', 'signal-' + signal.signal.toLowerCase()]">
+                                            {{ signal.signal }}
+                                        </span>
+                                    </td>
+                                    <td>{{ (signal.confidence * 100).toFixed(1) }}%</td>
+                                    <td>{{ signal.source }}</td>
+                                    <td>
+                                        <span :class="['status-badge-small', signal.executed ? 'executed' : 'pending']">
+                                            {{ signal.executed ? '✓ Исполнен' : '⏳ Ожидает' }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr v-if="signals.length === 0">
+                                    <td colspan="6" class="empty-state">Сигналов пока нет</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Portfolio Tab -->
+            <div v-show="currentTab === 'portfolio'" class="tab-content">
+                <h2>💼 Портфель</h2>
+                
+                <div class="portfolio-summary">
+                    <div class="summary-item">
+                        <span>Общая стоимость:</span>
+                        <strong>{{ formatCurrency(portfolio.total_value) }}</strong>
+                    </div>
+                    <div class="summary-item">
+                        <span>P&L:</span>
+                        <strong :class="portfolio.total_pnl >= 0 ? 'positive' : 'negative'">
+                            {{ formatCurrency(portfolio.total_pnl) }} ({{ portfolio.total_pnl_percent.toFixed(2) }}%)
+                        </strong>
+                    </div>
+                    <div class="summary-item">
+                        <span>Последнее обновление:</span>
+                        <strong>{{ formatTime(portfolio.last_update) }}</strong>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="portfolio-table">
+                        <thead>
+                            <tr>
+                                <th>Тикер</th>
+                                <th>Название</th>
+                                <th>Количество</th>
+                                <th>Средняя цена</th>
+                                <th>Текущая цена</th>
+                                <th>Стоимость</th>
+                                <th>P&L</th>
+                                <th>% от портфеля</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="position in portfolio.positions" :key="position.symbol">
+                                <td><strong>{{ position.symbol }}</strong></td>
+                                <td>{{ position.name || '-' }}</td>
+                                <td>{{ position.quantity }}</td>
+                                <td>{{ formatCurrency(position.avg_price) }}</td>
+                                <td>{{ formatCurrency(position.current_price) }}</td>
+                                <td>{{ formatCurrency(position.value) }}</td>
+                                <td :class="position.pnl >= 0 ? 'positive' : 'negative'">
+                                    {{ formatCurrency(position.pnl) }}
+                                    <br>
+                                    <small>({{ position.pnl_percent.toFixed(2) }}%)</small>
+                                </td>
+                                <td>{{ position.weight_percent.toFixed(2) }}%</td>
+                            </tr>
+                            <tr v-if="!portfolio.positions || portfolio.positions.length === 0">
+                                <td colspan="8" class="empty-state">Позиций в портфеле нет</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Configuration Tab -->
+            <div v-show="currentTab === 'config'" class="tab-content">
+                <h2>⚙️ Конфигурация</h2>
+                
+                <div class="config-section">
+                    <h3>Настройки T-Bank API</h3>
+                    <div class="form-group">
+                        <label>Токен T-Bank:</label>
+                        <input 
+                            type="password" 
+                            v-model="config.tbank_token" 
+                            placeholder="Введите токен..."
+                            class="input">
+                        <button @click="showTokenHelp" class="btn-link">ℹ️ Как получить токен?</button>
+                    </div>
+
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" v-model="config.sandbox">
+                            Режим песочницы (Sandbox)
+                        </label>
+                        <p class="help-text">
+                            В режиме песочницы используются виртуальные деньги для тестирования
+                        </p>
+                    </div>
+
+                    <div class="form-group">
+                        <button @click="checkTbankConnection" class="btn btn-primary">
+                            📊 Проверить подключение
+                        </button>
+                        <button @click="getTbankBalance" class="btn btn-secondary">
+                            💰 Получить баланс со счета
+                        </button>
+                    </div>
+
+                    <div v-if="connectionStatus" class="alert" :class="connectionStatus.success ? 'alert-success' : 'alert-error'">
+                        <strong>{{ connectionStatus.success ? '✅ Подключение успешно' : '❌ Ошибка подключения' }}</strong>
+                        <div v-if="connectionStatus.success">
+                            <p>Режим: {{ connectionStatus.mode }}</p>
+                            <p>ID счета: {{ connectionStatus.account_id }}</p>
+                            <p>Баланс: {{ formatCurrency(connectionStatus.balance) }}</p>
+                            <p>Инструментов загружено: {{ connectionStatus.instruments }}</p>
+                        </div>
+                        <div v-else>
+                            <p>{{ connectionStatus.error }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="config-section">
+                    <h3>Настройки портфеля</h3>
+                    <div class="form-group">
+                        <label>Начальный капитал (₽):</label>
+                        <input 
+                            type="number" 
+                            v-model.number="config.initial_capital" 
+                            min="100000"
+                            step="100000"
+                            class="input">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Порог сигнала (0-1):</label>
+                        <input 
+                            type="number" 
+                            v-model.number="config.signal_threshold" 
+                            min="0"
+                            max="1"
+                            step="0.05"
+                            class="input">
+                        <p class="help-text">
+                            Минимальная уверенность для исполнения торговых сигналов
+                        </p>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Торгуемые инструменты:</label>
+                        <textarea 
+                            v-model="config.symbols_text" 
+                            rows="5"
+                            placeholder="SBER, GAZP, LKOH, YNDX..."
+                            class="input"></textarea>
+                        <p class="help-text">
+                            Список тикеров через запятую
+                        </p>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <button @click="saveConfig" class="btn btn-success">
+                        💾 Сохранить конфигурацию
+                    </button>
+                    <button @click="loadConfig" class="btn btn-secondary">
+                        📂 Загрузить конфигурацию
+                    </button>
+                </div>
+            </div>
+
+            <!-- Logs Tab -->
+            <div v-show="currentTab === 'logs'" class="tab-content">
+                <h2>📝 Логи системы</h2>
+                
+                <div class="logs-controls">
+                    <button @click="loadLogs" class="btn btn-secondary">🔄 Обновить</button>
+                    <button @click="clearLogsDisplay" class="btn btn-secondary">🗑️ Очистить экран</button>
+                    <label>
+                        <input type="checkbox" v-model="autoRefreshLogs">
+                        Автообновление
+                    </label>
+                </div>
+
+                <div class="logs-container">
+                    <pre v-if="logs.length > 0">{{ logs.join('') }}</pre>
+                    <div v-else class="empty-state">Логов пока нет</div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>© 2025 Neyro-Invest | Версия 2.0.0 | Последнее обновление: {{ formatTime(lastUpdate) }}</p>
+        </footer>
+
+        <!-- Modal for token help -->
+        <div v-if="showTokenModal" class="modal" @click="showTokenModal = false">
+            <div class="modal-content" @click.stop>
+                <h3>Как получить токен T-Bank?</h3>
+                <ol class="help-list">
+                    <li>Зайдите в <strong>T-Bank Invest</strong> (мобильное приложение или веб-версия)</li>
+                    <li>Перейдите в <strong>Настройки → API для инвестиций</strong></li>
+                    <li>Нажмите <strong>"Создать токен"</strong></li>
+                    <li>Выберите права доступа (для торговли нужны права на чтение и торговлю)</li>
+                    <li>Скопируйте токен и вставьте в поле выше</li>
+                </ol>
+                <p class="warning">⚠️ Храните токен в безопасности! Никому не передавайте!</p>
+                <button @click="showTokenModal = false" class="btn btn-primary">Понятно</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
+
