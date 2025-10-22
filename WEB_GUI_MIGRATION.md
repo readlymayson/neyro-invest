@@ -478,5 +478,5 @@ python web_launcher.py
 
 *Дата создания: Октябрь 2025*  
 *Версия Web GUI: 2.0.0*  
-*Автор: Neyro-Invest Team*
+*Автор: EFrolov Dev Team*
 

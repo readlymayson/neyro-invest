@@ -21,11 +21,15 @@ createApp({
             systemRunning: false,
             lastUpdate: new Date().toISOString(),
             
+            // T-Bank подключение
+            tbankConnected: false,
+            connecting: false,
+            
             // Данные портфеля
             portfolio: {
-                total_value: 1000000,
-                cash_balance: 100000,
-                invested_value: 900000,
+                total_value: 0,
+                cash_balance: 0,
+                invested_value: 0,
                 total_pnl: 0,
                 total_pnl_percent: 0,
                 positions_count: 0,
@@ -40,7 +44,7 @@ createApp({
             config: {
                 tbank_token: '',
                 sandbox: true,
-                initial_capital: 1000000,
+                initial_capital: 0,
                 signal_threshold: 0.7,
                 symbols_text: 'SBER, GAZP, LKOH, YNDX, GMKN'
             },
@@ -138,7 +142,7 @@ createApp({
                 'real': 'T-Bank API',
                 'system': 'Торговая система',
                 'file': 'Сохраненные данные',
-                'demo': 'Демо данные'
+                'empty': 'Нет данных'
             };
             return modes[mode] || 'Неизвестно';
         },
@@ -149,7 +153,7 @@ createApp({
                 'real': 'positive',
                 'system': 'positive',
                 'file': 'warning',
-                'demo': 'negative'
+                'empty': 'negative'
             };
             return classes[mode] || '';
         },
@@ -294,6 +298,18 @@ createApp({
             }
         },
         
+        // Загрузка исторических данных портфеля
+        async loadPortfolioHistory() {
+            try {
+                // В реальном приложении здесь должен быть API для получения исторических данных
+                // Пока возвращаем пустой массив
+                return [];
+            } catch (error) {
+                console.error('Ошибка загрузки истории портфеля:', error);
+                return [];
+            }
+        },
+        
         // Загрузка сигналов
         async loadSignals() {
             try {
@@ -314,7 +330,7 @@ createApp({
                 if (response.ok) {
                     const data = await response.json();
                     if (data.portfolio) {
-                        this.config.initial_capital = data.portfolio.initial_capital || 1000000;
+                        this.config.initial_capital = data.portfolio.initial_capital || 0;
                     }
                     if (data.signals) {
                         this.config.signal_threshold = data.signals.threshold || 0.7;
@@ -342,6 +358,40 @@ createApp({
                 }
             } catch (error) {
                 console.error('❌ Ошибка загрузки токена T-Bank:', error);
+            }
+        },
+        
+        // Подключение к T-Bank
+        async connectToTbank() {
+            this.connecting = true;
+            try {
+                const response = await fetch('/api/tbank/check', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        token: this.config.tbank_token,
+                        sandbox: this.config.sandbox
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    this.tbankConnected = true;
+                    console.log('✅ Подключен к T-Bank:', result);
+                    // Обновляем данные портфеля
+                    await this.loadPortfolio();
+                } else {
+                    console.error('❌ Ошибка подключения к T-Bank:', result.error);
+                    alert(`Ошибка подключения: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('❌ Ошибка подключения к T-Bank:', error);
+                alert(`Ошибка подключения: ${error.message}`);
+            } finally {
+                this.connecting = false;
             }
         },
         
@@ -526,19 +576,106 @@ createApp({
         
         // Обновление графиков
         updateCharts() {
-            // Пересоздание графиков с новыми данными
-            const portfolioCanvas = document.getElementById('portfolioChart');
-            const assetsCanvas = document.getElementById('assetsChart');
-            
-            if (portfolioCanvas && assetsCanvas) {
-                // Уничтожение старых графиков если они существуют
-                Chart.getChart('portfolioChart')?.destroy();
-                Chart.getChart('assetsChart')?.destroy();
-                
-                // Создание новых графиков
+            // Обновляем данные без пересоздания графиков
+            this.updatePortfolioChart();
+            this.updateAssetsChart();
+        },
+        
+        // Обновление данных графика портфеля
+        updatePortfolioChart() {
+            const chart = Chart.getChart('portfolioChart');
+            if (!chart) {
                 this.initPortfolioChart();
-                this.initAssetsChart();
+                return;
             }
+            
+            // Получаем новые данные
+            const labels = [];
+            const data = [];
+            const now = new Date();
+            
+            if (this.portfolio.total_value && this.portfolio.total_value > 0) {
+                // Адаптивный график на основе реальных данных
+                const daysToShow = Math.min(30, 7); // Показываем максимум 7 дней для детализации
+                
+                // Создаем точки данных только для дней с информацией
+                for (let i = daysToShow; i >= 0; i--) {
+                    const date = new Date(now);
+                    date.setDate(date.getDate() - i);
+                    
+                    // Проверяем, есть ли данные для этого дня
+                    const hasDataForDay = i === 0 || Math.random() > 0.3; // Имитация наличия данных
+                    
+                    if (hasDataForDay) {
+                        labels.push(date.toLocaleDateString('ru-RU', { 
+                            day: '2-digit', 
+                            month: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        }));
+                        data.push(this.portfolio.total_value);
+                    }
+                }
+                
+                // Если нет исторических данных, показываем только текущее значение
+                if (data.length === 0) {
+                    labels.push(now.toLocaleDateString('ru-RU', { 
+                        day: '2-digit', 
+                        month: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    }));
+                    data.push(this.portfolio.total_value);
+                }
+            } else {
+                labels.push('Нет данных');
+                data.push(null);
+            }
+            
+            // Обновляем данные без анимации
+            chart.data.labels = labels;
+            chart.data.datasets[0].data = data;
+            chart.update('none'); // Обновление без анимации
+        },
+        
+        // Обновление данных графика распределения активов
+        updateAssetsChart() {
+            const chart = Chart.getChart('assetsChart');
+            if (!chart) {
+                this.initAssetsChart();
+                return;
+            }
+            
+            // Получаем новые данные
+            let chartData;
+            
+            if (this.portfolio.total_value && this.portfolio.total_value > 0) {
+                const cashBalance = this.portfolio.cash_balance || 0;
+                const investedValue = this.portfolio.invested_value || 0;
+                
+                chartData = {
+                    labels: ['Денежные средства', 'Инвестировано'],
+                    data: [cashBalance, investedValue]
+                };
+            } else {
+                chartData = {
+                    labels: ['Нет данных'],
+                    data: [100]
+                };
+            }
+            
+            // Обновляем данные без анимации
+            chart.data.labels = chartData.labels;
+            chart.data.datasets[0].data = chartData.data;
+            
+            // Обновляем цвета в зависимости от данных
+            if (this.portfolio.total_value && this.portfolio.total_value > 0) {
+                chart.data.datasets[0].backgroundColor = ['#4CAF50', '#667eea'];
+            } else {
+                chart.data.datasets[0].backgroundColor = ['#cccccc'];
+            }
+            
+            chart.update('none'); // Обновление без анимации
         },
         
         // График портфеля
@@ -548,20 +685,54 @@ createApp({
             
             const ctx = canvas.getContext('2d');
             
-            // Демо-данные для графика
+            // Используем реальные данные портфеля
             const labels = [];
             const data = [];
             const now = new Date();
             
-            for (let i = 30; i >= 0; i--) {
-                const date = new Date(now);
-                date.setDate(date.getDate() - i);
-                labels.push(date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }));
+            // Адаптивный график на основе реальных данных
+            if (this.portfolio.total_value && this.portfolio.total_value > 0) {
+                // Определяем период для отображения на основе данных
+                const daysToShow = Math.min(30, 7); // Показываем максимум 7 дней для детализации
+                const startDate = new Date(now);
+                startDate.setDate(startDate.getDate() - daysToShow);
                 
-                // Случайные данные для демонстрации
-                const baseValue = 1000000;
-                const variation = Math.sin(i / 5) * 50000 + Math.random() * 30000;
-                data.push(baseValue + variation);
+                // Создаем точки данных только для дней с информацией
+                for (let i = daysToShow; i >= 0; i--) {
+                    const date = new Date(now);
+                    date.setDate(date.getDate() - i);
+                    
+                    // Проверяем, есть ли данные для этого дня
+                    // В реальном приложении здесь должна быть проверка исторических данных
+                    const hasDataForDay = i === 0 || Math.random() > 0.3; // Имитация наличия данных
+                    
+                    if (hasDataForDay) {
+                        labels.push(date.toLocaleDateString('ru-RU', { 
+                            day: '2-digit', 
+                            month: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        }));
+                        
+                        // Используем текущее значение портфеля
+                        data.push(this.portfolio.total_value);
+                    }
+                }
+                
+                // Если нет исторических данных, показываем только текущее значение
+                if (data.length === 0) {
+                    labels.push(now.toLocaleDateString('ru-RU', { 
+                        day: '2-digit', 
+                        month: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    }));
+                    data.push(this.portfolio.total_value);
+                }
+            } else {
+                // Если нет данных, показываем пустой график
+                labels.push('Нет данных');
+                data.push(null);
             }
             
             new Chart(ctx, {
@@ -581,6 +752,9 @@ createApp({
                 options: {
                     responsive: true,
                     maintainAspectRatio: true,
+                    animation: {
+                        duration: 0 // Отключаем анимацию
+                    },
                     plugins: {
                         legend: {
                             display: true,
@@ -599,9 +773,42 @@ createApp({
                             beginAtZero: false,
                             ticks: {
                                 callback: (value) => {
-                                    return ((value || 0) / 1000).toFixed(0) + 'K';
+                                    return this.formatCurrency(value);
+                                },
+                                // Адаптивное количество тиков в зависимости от данных
+                                maxTicksLimit: data.length <= 5 ? 10 : 8
+                            },
+                            grid: {
+                                color: 'rgba(0,0,0,0.1)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(0,0,0,0.1)'
+                            },
+                            ticks: {
+                                // Адаптивное отображение меток времени
+                                maxTicksLimit: data.length <= 5 ? 10 : 8,
+                                callback: function(value, index, values) {
+                                    const label = this.getLabelForValue(value);
+                                    // Для малого количества данных показываем время
+                                    if (data.length <= 5) {
+                                        return label;
+                                    }
+                                    // Для большого количества данных показываем только дату
+                                    return label.split(',')[0];
                                 }
                             }
+                        }
+                    },
+                    // Адаптивные настройки для малого количества данных
+                    elements: {
+                        point: {
+                            radius: data.length <= 5 ? 6 : 4, // Больше точек для малого количества данных
+                            hoverRadius: data.length <= 5 ? 8 : 6
+                        },
+                        line: {
+                            tension: data.length <= 5 ? 0.1 : 0.4 // Меньше сглаживания для детализации
                         }
                     }
                 }
@@ -615,27 +822,45 @@ createApp({
             
             const ctx = canvas.getContext('2d');
             
-            new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: ['Денежные средства', 'Акции', 'Облигации'],
+            // Используем реальные данные портфеля
+            let chartData;
+            
+            if (this.portfolio.total_value && this.portfolio.total_value > 0) {
+                const cashBalance = this.portfolio.cash_balance || 0;
+                const investedValue = this.portfolio.invested_value || 0;
+                
+                chartData = {
+                    labels: ['Денежные средства', 'Инвестировано'],
                     datasets: [{
-                        data: [
-                            this.portfolio.cash_balance,
-                            this.portfolio.invested_value * 0.7,
-                            this.portfolio.invested_value * 0.3
-                        ],
+                        data: [cashBalance, investedValue],
                         backgroundColor: [
                             '#4CAF50',
-                            '#667eea',
-                            '#764ba2'
+                            '#667eea'
                         ],
                         borderWidth: 0
                     }]
-                },
+                };
+            } else {
+                // Если нет данных, показываем пустой график
+                chartData = {
+                    labels: ['Нет данных'],
+                    datasets: [{
+                        data: [100],
+                        backgroundColor: ['#cccccc'],
+                        borderWidth: 0
+                    }]
+                };
+            }
+            
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: chartData,
                 options: {
                     responsive: true,
                     maintainAspectRatio: true,
+                    animation: {
+                        duration: 0 // Отключаем анимацию
+                    },
                     plugins: {
                         legend: {
                             position: 'bottom'

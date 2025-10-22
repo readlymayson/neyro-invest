@@ -384,13 +384,27 @@ class TBankBroker:
                 
                 for position in response.positions:
                     ticker = self._figi_to_ticker(position.figi)
+                    quantity = self._quotation_to_float(position.quantity)
+                    avg_price = self._money_value_to_float(position.average_position_price) if hasattr(position, 'average_position_price') else 0
+                    current_price = self._money_value_to_float(position.current_price) if hasattr(position, 'current_price') else 0
+                    expected_yield = self._quotation_to_float(position.expected_yield) if hasattr(position, 'expected_yield') else 0
+                    
+                    # Рассчитываем стоимость и P&L
+                    value = quantity * current_price if current_price > 0 else 0
+                    cost = quantity * avg_price if avg_price > 0 else 0
+                    pnl = value - cost
+                    pnl_percent = (pnl / cost * 100) if cost > 0 else 0
+                    
                     portfolio['positions'].append({
                         'ticker': ticker,
                         'figi': position.figi,
-                        'quantity': self._quotation_to_float(position.quantity),
-                        'average_price': self._money_value_to_float(position.average_position_price) if hasattr(position, 'average_position_price') else 0,
-                        'current_price': self._money_value_to_float(position.current_price) if hasattr(position, 'current_price') else 0,
-                        'expected_yield': self._quotation_to_float(position.expected_yield) if hasattr(position, 'expected_yield') else 0,
+                        'quantity': quantity,
+                        'avg_price': avg_price,
+                        'current_price': current_price,
+                        'value': value,
+                        'pnl': pnl,
+                        'pnl_percent': pnl_percent,
+                        'expected_yield': expected_yield,
                     })
                 
                 return portfolio
@@ -444,7 +458,7 @@ class TBankBroker:
             balances = await self.get_account_balance()
             rub_balance = balances.get('rub', 0.0)
             
-            logger.info(f"Доступные средства на счете: {rub_balance:,.2f} ₽")
+            logger.info(f"Доступные средства на счете: {rub_balance:,.2f} RUB")
             return rub_balance
             
         except Exception as e:

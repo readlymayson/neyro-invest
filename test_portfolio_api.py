@@ -10,7 +10,7 @@ from datetime import datetime
 
 def test_portfolio_api():
     """Тестирование API портфеля"""
-    base_url = "http://127.0.0.1:8000"
+    base_url = "http://127.0.0.1:8001"
     
     print("=" * 70)
     print("ТЕСТИРОВАНИЕ API ПОРТФЕЛЯ")

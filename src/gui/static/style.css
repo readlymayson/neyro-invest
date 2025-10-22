@@ -47,21 +47,16 @@ body {
 .header-content {
     max-width: 1400px;
     margin: 0 auto;
-    padding: 20px 40px;
+    padding: 10px 20px;
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
 
 .logo h1 {
-    font-size: 2em;
+    font-size: 1.5em;
     color: var(--primary-color);
-    margin-bottom: 5px;
-}
-
-.subtitle {
-    color: var(--text-secondary);
-    font-size: 0.9em;
+    margin: 0;
 }
 
 .status-indicator {
@@ -72,11 +67,11 @@ body {
 .status-badge {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px 20px;
-    border-radius: 25px;
+    gap: 5px;
+    padding: 5px 10px;
+    border-radius: 15px;
     font-weight: 500;
-    font-size: 0.95em;
+    font-size: 0.8em;
 }
 
 .status-active {
@@ -90,8 +85,8 @@ body {
 }
 
 .status-dot {
-    width: 10px;
-    height: 10px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
     background: currentColor;
     animation: pulse 2s infinite;
@@ -611,5 +606,68 @@ textarea.input {
 
 ::-webkit-scrollbar-thumb:hover {
     background: var(--secondary-color);
+}
+
+/* T-Bank Connection Styles */
+.connection-status {
+    margin-bottom: 2rem;
+}
+
+.connection-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 15px;
+    padding: 2rem;
+    color: white;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+.connection-header h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.connection-header p {
+    margin: 0 0 1.5rem 0;
+    opacity: 0.9;
+    font-size: 1rem;
+}
+
+.connection-actions {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+}
+
+.btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-primary {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: translateY(-2px);
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 

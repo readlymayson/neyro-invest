@@ -24,15 +24,18 @@ class TbankBalanceRequest(BaseModel):
     sandbox: bool = True
 from loguru import logger
 import os
+from ..utils.logger_config import setup_web_logging
+
+# Настройка логирования с поддержкой UTF-8
+setup_web_logging()
 
 # Импорт компонентов системы
 try:
-    from ..trading.tbank_broker import TBankBroker
     from ..core.investment_system import InvestmentSystem
     from ..portfolio.portfolio_manager import PortfolioManager
     from ..neural_networks.network_manager import NetworkManager
     from ..trading.trading_engine import TradingEngine
-    from tinkoff.invest import AsyncClient
+    from ..services.tbank_service import tbank_service, auto_connect_tbank
     SYSTEM_AVAILABLE = True
     logger.info("Системные модули загружены успешно")
 except ImportError as e:
@@ -115,7 +118,6 @@ class ConfigData(BaseModel):
 app_state = {
     "system_running": False,
     "investment_system": None,
-    "broker": None,
     "portfolio_manager": None,
     "network_manager": None,
     "trading_engine": None,
@@ -193,7 +195,7 @@ async def get_system_status():
             except Exception as e:
                 logger.warning(f"Ошибка проверки процессов: {e}")
         
-        if app_state["broker"]:
+        if app_state.get("broker"):
             status = app_state["broker"].get_status()
             return SystemStatus(
                 is_running=app_state["system_running"],
@@ -260,7 +262,7 @@ async def start_system(config_path: str = "config/main.yaml"):
             }
         })
         
-        logger.info("✅ Торговая система успешно запущена")
+        logger.info("Торговая система успешно запущена")
         return {
             "message": "Система запущена успешно",
             "status": "started",
@@ -268,7 +270,7 @@ async def start_system(config_path: str = "config/main.yaml"):
         }
         
     except Exception as e:
-        logger.error(f"❌ Ошибка запуска системы: {e}")
+        logger.error(f"Ошибка запуска системы: {e}")
         app_state["system_running"] = False
         app_state["investment_system"] = None
         raise HTTPException(status_code=500, detail=str(e))
@@ -312,7 +314,7 @@ async def stop_system():
             }
         })
         
-        logger.info("✅ Торговая система успешно остановлена")
+        logger.info("Торговая система успешно остановлена")
         return {
             "message": "Система остановлена успешно", 
             "status": "stopped",
@@ -320,7 +322,7 @@ async def stop_system():
         }
         
     except Exception as e:
-        logger.error(f"❌ Ошибка остановки системы: {e}")
+        logger.error(f"Ошибка остановки системы: {e}")
         # Всё равно пытаемся очистить состояние
         app_state["system_running"] = False
         app_state["investment_system"] = None
@@ -330,104 +332,22 @@ async def stop_system():
 async def get_portfolio():
     """Получение данных портфеля"""
     try:
-        # Если есть брокер, получаем реальные данные из T-Bank
-        if app_state["broker"]:
-            logger.info("📊 Получение данных из T-Bank API")
+        # Если T-Bank подключен, получаем реальные данные
+        if tbank_service.is_connected:
+            logger.info("Получение данных из T-Bank API")
             try:
-                # Получаем реальные данные из T-Bank
-                async with AsyncClient(app_state["broker"].token, target=app_state["broker"].target) as client:
-                    # Используем правильные методы API
-                    if app_state["broker"].sandbox:
-                        positions_response = await client.sandbox.get_sandbox_positions(
-                            account_id=app_state["broker"].account_id
-                        )
-                        
-                        portfolio_response = await client.sandbox.get_sandbox_portfolio(
-                            account_id=app_state["broker"].account_id
-                        )
-                    else:
-                        positions_response = await client.operations.get_positions(
-                            account_id=app_state["broker"].account_id
-                        )
-                        
-                        portfolio_response = await client.operations.get_portfolio(
-                            account_id=app_state["broker"].account_id
-                        )
-                    
-                    # Получаем маппинг FIGI -> тикер
-                    shares_response = await client.instruments.shares()
-                    figi_to_ticker = {share.figi: share.ticker for share in shares_response.instruments}
-                    
-                    # Обработка денежных средств
-                    cash_balance = 0
-                    if positions_response.money:
-                        for money in positions_response.money:
-                            if money.currency.lower() == 'rub':
-                                cash_balance = money.units + money.nano / 1_000_000_000
-                    
-                    # Обработка позиций
-                    positions = []
-                    total_value = 0
-                    total_pnl = 0
-                    
-                    if portfolio_response.positions:
-                        for position in portfolio_response.positions:
-                            ticker = figi_to_ticker.get(position.figi, position.figi[:8])
-                            quantity = float(position.quantity.units + position.quantity.nano / 1_000_000_000)
-                            
-                            avg_price = 0
-                            if hasattr(position, 'average_position_price'):
-                                avg_price = position.average_position_price.units + position.average_position_price.nano / 1_000_000_000
-                            
-                            current_price = 0
-                            if hasattr(position, 'current_price'):
-                                current_price = position.current_price.units + position.current_price.nano / 1_000_000_000
-                            
-                            value = quantity * current_price
-                            total_value += value
-                            
-                            # Расчет P&L
-                            pnl = 0
-                            pnl_percent = 0
-                            if avg_price > 0:
-                                cost = quantity * avg_price
-                                pnl = value - cost
-                                pnl_percent = (pnl / cost) * 100 if cost > 0 else 0
-                                total_pnl += pnl
-                            
-                            positions.append({
-                                "symbol": ticker,
-                                "name": ticker,
-                                "quantity": quantity,
-                                "avg_price": avg_price,
-                                "current_price": current_price,
-                                "value": value,
-                                "pnl": pnl,
-                                "pnl_percent": pnl_percent,
-                                "weight_percent": (value / (total_value + cash_balance)) * 100 if (total_value + cash_balance) > 0 else 0
-                            })
-                    
-                    portfolio_data = {
-                        "total_value": total_value + cash_balance,
-                        "cash_balance": cash_balance,
-                        "invested_value": total_value,
-                        "total_pnl": total_pnl,
-                        "total_pnl_percent": (total_pnl / total_value) * 100 if total_value > 0 else 0,
-                        "positions_count": len(positions),
-                        "positions": positions,
-                        "last_update": datetime.now().isoformat(),
-                        "mode": "real"
-                    }
-                
-                app_state["last_portfolio_update"] = datetime.now()
-                return portfolio_data
-                
+                portfolio_data = await tbank_service.get_portfolio_data()
+                if "error" not in portfolio_data:
+                    app_state["last_portfolio_update"] = datetime.now()
+                    return portfolio_data
+                else:
+                    logger.warning(f"Ошибка получения данных из T-Bank: {portfolio_data.get('error')}")
             except Exception as e:
                 logger.warning(f"Ошибка получения данных из T-Bank: {e}")
         
-        # Если система запущена, получаем данные из portfolio_manager
+        # Если есть система, получаем данные из неё
         if app_state["portfolio_manager"]:
-            logger.info("📊 Получение данных из торговой системы")
+            logger.info("Получение данных из торговой системы")
             try:
                 status = app_state["portfolio_manager"].get_status()
                 
@@ -451,7 +371,7 @@ async def get_portfolio():
         # Попытка загрузить из файла
         portfolio_file = Path("data/portfolio.json")
         if portfolio_file.exists():
-            logger.info("📊 Загрузка данных из файла")
+            logger.info("Загрузка данных из файла")
             try:
                 with open(portfolio_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
@@ -461,18 +381,18 @@ async def get_portfolio():
             except Exception as e:
                 logger.warning(f"Ошибка чтения файла портфеля: {e}")
         
-        # Возвращаем demo данные
-        logger.info("📊 Возвращаем demo данные портфеля")
+        # Если нет данных, возвращаем пустой портфель
+        logger.info("Нет данных портфеля")
         return {
-            "total_value": 1000000,
-            "cash_balance": 100000,
-            "invested_value": 900000,
+            "total_value": 0,
+            "cash_balance": 0,
+            "invested_value": 0,
             "total_pnl": 0,
             "total_pnl_percent": 0,
             "positions_count": 0,
             "positions": [],
             "last_update": datetime.now().isoformat(),
-            "mode": "demo"
+            "mode": "empty"
         }
     except Exception as e:
         logger.error(f"Ошибка получения портфеля: {e}")
@@ -523,23 +443,9 @@ async def check_tbank_connection(request: TbankCheckRequest):
         if not SYSTEM_AVAILABLE:
             raise HTTPException(status_code=503, detail="Системные модули недоступны")
         
-        broker = TBankBroker(token=request.token, sandbox=request.sandbox)
-        await broker.initialize()
+        result = await tbank_service.connect(request.token, request.sandbox)
+        return result
         
-        balance = await broker.get_total_balance_rub()
-        status = broker.get_status()
-        
-        # Сохраняем брокера в глобальном состоянии
-        app_state["broker"] = broker
-        logger.info(f"✅ T-Bank брокер инициализирован: {status.get('account_id')}")
-        
-        return {
-            "success": True,
-            "mode": "sandbox" if request.sandbox else "production",
-            "account_id": status.get("account_id"),
-            "balance": balance,
-            "instruments": status.get("instruments_loaded", 0)
-        }
     except Exception as e:
         logger.error(f"Ошибка проверки T-Bank: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -551,14 +457,15 @@ async def get_tbank_balance(request: TbankBalanceRequest):
         if not SYSTEM_AVAILABLE:
             raise HTTPException(status_code=503, detail="Системные модули недоступны")
         
-        broker = TBankBroker(token=request.token, sandbox=request.sandbox)
-        await broker.initialize()
-        balance = await broker.get_total_balance_rub()
+        # Подключаемся если не подключены
+        if not tbank_service.is_connected:
+            connect_result = await tbank_service.connect(request.token, request.sandbox)
+            if not connect_result.get("success"):
+                raise HTTPException(status_code=400, detail=connect_result.get("error"))
         
-        return {
-            "balance": balance,
-            "currency": "RUB"
-        }
+        result = await tbank_service.get_balance()
+        return result
+        
     except Exception as e:
         logger.error(f"Ошибка получения баланса: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -811,34 +718,12 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"Не удалось проверить статус системы при запуске: {e}")
     
-    # Попытка автоматической инициализации T-Bank брокера
+    # Попытка автоматического подключения к T-Bank
     try:
         if SYSTEM_AVAILABLE:
-            # Проверяем наличие токена в переменных окружения
-            token = os.getenv('TINKOFF_TOKEN')
-            if not token:
-                # Проверяем .env файл
-                env_file = Path('.env')
-                if env_file.exists():
-                    with open(env_file, 'r', encoding='utf-8') as f:
-                        for line in f:
-                            if line.strip() and not line.startswith('#'):
-                                if '=' in line:
-                                    key, value = line.strip().split('=', 1)
-                                    if key.strip() == 'TINKOFF_TOKEN':
-                                        token = value.strip().strip('"').strip("'")
-                                        break
-            
-            if token:
-                logger.info("Найден T-Bank токен, инициализация брокера...")
-                broker = TBankBroker(token=token, sandbox=True)
-                await broker.initialize()
-                app_state["broker"] = broker
-                logger.info("✅ T-Bank брокер автоматически инициализирован")
-            else:
-                logger.info("T-Bank токен не найден, пропускаем автоматическую инициализацию")
+            await auto_connect_tbank()
     except Exception as e:
-        logger.warning(f"Не удалось автоматически инициализировать T-Bank брокера: {e}")
+        logger.warning(f"Не удалось автоматически подключиться к T-Bank: {e}")
     
     # Запуск фоновой задачи
     asyncio.create_task(broadcast_updates())
@@ -935,5 +820,5 @@ def get_default_html() -> str:
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=8001, log_level="info")
 

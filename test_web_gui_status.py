@@ -10,7 +10,7 @@ from datetime import datetime
 
 def test_api_endpoints():
     """Тестирование API endpoints"""
-    base_url = "http://127.0.0.1:8000"
+    base_url = "http://127.0.0.1:8001"
     
     print("=" * 70)
     print("🧪 ТЕСТИРОВАНИЕ WEB GUI API")

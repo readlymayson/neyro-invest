@@ -1,5 +1,5 @@
 """
-Launcher для веб-интерфейса Neyro-Invest
+Launcher для веб-интерфейса EFrolovDev-Invest
 Запускает FastAPI приложение с веб-GUI
 """
 
@@ -47,9 +47,9 @@ def check_dependencies():
     for package, name in required_packages.items():
         try:
             __import__(package)
-            logger.debug(f"  ✓ {name} установлен")
+            logger.debug(f"  + {name} установлен")
         except ImportError:
-            logger.warning(f"  ✗ {name} НЕ установлен")
+            logger.warning(f"  - {name} НЕ установлен")
             missing_packages.append(package)
     
     if missing_packages:
@@ -57,7 +57,7 @@ def check_dependencies():
         logger.info("Установите зависимости: pip install -r requirements.txt")
         return False
     
-    logger.info("✓ Все зависимости установлены")
+    logger.info("+ Все зависимости установлены")
     return True
 
 
@@ -76,7 +76,7 @@ def setup_environment():
         try:
             from dotenv import load_dotenv
             load_dotenv(env_file)
-            logger.info("✓ Переменные окружения загружены")
+            logger.info("+ Переменные окружения загружены")
         except ImportError:
             logger.warning("python-dotenv не установлен, пропускаем загрузку .env")
     else:
@@ -86,15 +86,15 @@ def setup_environment():
     for dir_name in ["logs", "data", "config", "models"]:
         dir_path = root_dir / dir_name
         dir_path.mkdir(exist_ok=True)
-        logger.debug(f"  ✓ Директория: {dir_path}")
+        logger.debug(f"  + Директория: {dir_path}")
     
-    logger.info("✓ Окружение настроено")
+    logger.info("+ Окружение настроено")
 
 
 def main():
     """Главная функция запуска веб-GUI"""
     print("\n" + "=" * 70)
-    print("    NEYRO-INVEST - WEB GUI LAUNCHER")
+    print("    EFrolovDev-Invest - Web GUI Launcher")
     print("    Запуск веб-интерфейса")
     print("=" * 70)
     
@@ -122,7 +122,7 @@ def main():
         
         # Параметры запуска
         host = os.getenv("WEB_GUI_HOST", "127.0.0.1")
-        port = int(os.getenv("WEB_GUI_PORT", "8000"))
+        port = int(os.getenv("WEB_GUI_PORT", "8001"))
         
         print("\n" + "=" * 70)
         print("ЗАПУСК ВЕБ-СЕРВЕРА")

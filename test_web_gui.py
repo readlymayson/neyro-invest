@@ -45,11 +45,11 @@ print("\n[4/4] Запуск тестового сервера...")
 try:
     import uvicorn
     print("✓ Uvicorn доступен")
-    print("\nЗапуск сервера на http://127.0.0.1:8000...")
+    print("\nЗапуск сервера на http://127.0.0.1:8001...")
     print("Нажмите Ctrl+C для остановки")
     print("=" * 70)
     
-    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
+    uvicorn.run(app, host="127.0.0.1", port=8001, log_level="info")
     
 except KeyboardInterrupt:
     print("\n\n✓ Сервер остановлен")
