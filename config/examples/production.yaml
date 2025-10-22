@@ -1,0 +1,117 @@
+# Продакшен конфигурация для реальной торговли
+# ТОЛЬКО ДЛЯ ОПЫТНЫХ ПОЛЬЗОВАТЕЛЕЙ!
+# Обязательно протестируйте на sandbox перед использованием
+
+# Настройки данных
+data:
+  provider: yfinance
+  symbols:
+    - SBER                    # Сбербанк
+    - GAZP                    # Газпром
+    - LKOH                    # Лукойл
+    - NVTK                    # НОВАТЭК
+    - ROSN                    # Роснефть
+    - NLMK                    # НЛМК
+    - MAGN                    # ММК
+    - YNDX                    # Яндекс
+    - MOEX                    # Московская биржа
+    - VTBR                    # ВТБ
+  update_interval: 180        # Обновление каждые 3 минуты
+  history_days: 1095         # 3 года истории
+
+# Настройки нейросетей (продакшен)
+neural_networks:
+  models:
+    - name: lstm_production
+      type: lstm
+      weight: 0.35
+      enabled: true
+      sequence_length: 180    # Максимум данных для анализа
+      lstm_units: [128, 128, 64]  # Оптимальная архитектура
+      dropout_rate: 0.15
+      learning_rate: 0.0005   # Меньше скорость для стабильности
+      batch_size: 16          # Меньший батч для лучшего обучения
+      epochs: 200             # Максимум эпох
+      
+    - name: xgb_production
+      type: xgboost
+      weight: 0.35
+      enabled: true
+      n_estimators: 500       # Максимум деревьев
+      max_depth: 10           # Максимальная глубина
+      learning_rate: 0.03     # Оптимизированная скорость
+      subsample: 0.8
+      colsample_bytree: 0.8
+      buy_threshold: 0.035    # Точные пороги
+      sell_threshold: -0.035
+      
+    - name: deepseek_production
+      type: deepseek
+      weight: 0.35
+      enabled: true
+      api_key: ${DEEPSEEK_API_KEY}
+      model_name: "deepseek-chat"
+      max_tokens: 8000        # Максимум токенов для детального анализа
+      temperature: 0.3        # Сбалансированные предсказания
+      analysis_window: 90     # Максимум данных для анализа
+      
+  analysis_interval: 180      # Анализ каждые 3 минуты
+  ensemble_method: confidence_weighted
+
+# Настройки торговли (РЕАЛЬНАЯ ТОРГОВЛЯ!)
+trading:
+  broker: tinkoff             # Реальный брокер
+  signal_threshold: 0.65      # Сбалансированный порог
+  signal_check_interval: 30   # Частая проверка сигналов
+  max_positions: 15           # Максимум позиций
+  position_size: 0.06         # 6% от капитала на позицию
+  
+  broker_settings:
+    tinkoff:
+      token: ${TINKOFF_TOKEN}  # Из переменной окружения!
+      sandbox: false          # РЕАЛЬНАЯ ТОРГОВЛЯ!
+    sber:
+      token: ${SBER_TOKEN}
+      sandbox: false
+
+# Настройки портфеля (продакшен)
+portfolio:
+  initial_capital: 10000000   # 10 миллионов рублей
+  max_risk_per_trade: 0.02    # 2% риска на сделку
+  max_portfolio_risk: 0.1     # 10% максимальный риск портфеля
+  update_interval: 180        # Обновление каждые 3 минуты
+  rebalance_threshold: 0.05   # Ребалансировка при 5% отклонении
+
+# Настройки логирования (продакшен)
+logging:
+  level: WARNING              # Только важные события
+  file: logs/production_system.log
+  max_size: 100 MB
+  retention: 90 days          # Долгое хранение
+  format: "{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} - {message}"
+
+# Настройки уведомлений (ОБЯЗАТЕЛЬНО!)
+notifications:
+  enabled: true
+  email:
+    smtp_server: "smtp.gmail.com"
+    smtp_port: 587
+    username: ${EMAIL_USERNAME}
+    password: ${EMAIL_PASSWORD}
+    to_email: ${NOTIFICATION_EMAIL}
+  
+  telegram:
+    bot_token: ${TELEGRAM_BOT_TOKEN}
+    chat_id: ${TELEGRAM_CHAT_ID}
+
+# Настройки мониторинга (продакшен)
+monitoring:
+  enabled: true
+  web_interface:
+    enabled: true
+    host: "0.0.0.0"
+    port: 8080
+  
+  metrics:
+    enabled: true
+    export_interval: 30       # Частый экспорт метрик

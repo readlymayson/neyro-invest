@@ -1,0 +1,17 @@
+# Минимальные зависимости для работы проекта
+numpy
+pandas
+scikit-learn
+xgboost
+yfinance
+requests
+loguru
+matplotlib
+seaborn
+sqlalchemy
+pyyaml
+python-dotenv
+schedule
+python-dateutil
+pytz
+

@@ -1,0 +1,108 @@
+# Конфигурация для начинающих пользователей
+# Безопасная настройка с минимальными рисками
+
+# Настройки данных
+data:
+  provider: yfinance
+  symbols:
+    - SBER                    # Сбербанк - стабильная акция
+    - GAZP                    # Газпром - дивидендная акция
+  update_interval: 900        # Обновление каждые 15 минут
+  history_days: 180          # 6 месяцев истории
+
+# Настройки нейросетей (упрощенные)
+neural_networks:
+  models:
+    - name: lstm_beginners
+      type: lstm
+      weight: 0.6
+      enabled: true
+      sequence_length: 30     # Меньше данных для анализа
+      lstm_units: [32, 32]    # Меньше нейронов
+      dropout_rate: 0.3       # Больше дропаута
+      learning_rate: 0.001
+      batch_size: 64          # Больший батч
+      epochs: 50              # Меньше эпох для быстрого обучения
+      
+    - name: xgb_beginners
+      type: xgboost
+      weight: 0.3
+      enabled: true
+      n_estimators: 50        # Меньше деревьев
+      max_depth: 4            # Меньше глубина
+      learning_rate: 0.1
+      subsample: 0.8
+      colsample_bytree: 0.8
+      buy_threshold: 0.08     # Более консервативные пороги
+      sell_threshold: -0.08
+      
+    - name: deepseek_beginners
+      type: deepseek
+      weight: 0.3
+      enabled: true
+      api_key: ${DEEPSEEK_API_KEY}
+      model_name: "deepseek-chat"
+      max_tokens: 2000        # Меньше токенов для экономии
+      temperature: 0.2        # Более консервативные предсказания
+      analysis_window: 20     # Меньше данных для анализа
+      
+  analysis_interval: 600      # Анализ каждые 10 минут
+  ensemble_method: weighted_average
+
+# Настройки торговли (консервативные)
+trading:
+  broker: paper               # Только бумажная торговля
+  signal_threshold: 0.75      # Высокий порог уверенности
+  signal_check_interval: 60   # Проверка сигналов каждую минуту
+  max_positions: 2            # Максимум 2 позиции
+  position_size: 0.05         # 5% от капитала на позицию
+  
+  broker_settings:
+    tinkoff:
+      token: "your_tinkoff_token"
+      sandbox: true
+    sber:
+      token: "your_sber_token"
+      sandbox: true
+
+# Настройки портфеля (безопасные)
+portfolio:
+  initial_capital: 100000     # 100 тысяч рублей
+  max_risk_per_trade: 0.01    # 1% риска на сделку
+  max_portfolio_risk: 0.05    # 5% максимальный риск портфеля
+  update_interval: 600        # Обновление каждые 10 минут
+  rebalance_threshold: 0.03   # Ребалансировка при 3% отклонении
+
+# Настройки логирования (подробные)
+logging:
+  level: INFO
+  file: logs/beginners_system.log
+  max_size: 5 MB
+  retention: 7 days
+  format: "{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} - {message}"
+
+# Настройки уведомлений (включены для безопасности)
+notifications:
+  enabled: true
+  email:
+    smtp_server: "smtp.gmail.com"
+    smtp_port: 587
+    username: "your_email@gmail.com"
+    password: "your_app_password"
+    to_email: "your_email@gmail.com"
+  
+  telegram:
+    bot_token: "your_telegram_bot_token"
+    chat_id: "your_chat_id"
+
+# Настройки мониторинга (базовые)
+monitoring:
+  enabled: true
+  web_interface:
+    enabled: true
+    host: "localhost"
+    port: 8080
+  
+  metrics:
+    enabled: true
+    export_interval: 120      # Экспорт метрик каждые 2 минуты

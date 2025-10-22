@@ -1,0 +1,113 @@
+# Основная конфигурация системы нейросетевых инвестиций
+
+# Настройки данных
+data:
+  provider: yfinance
+  symbols:
+    - SBER
+    - GAZP
+    - LKOH
+  update_interval: 300  # 5 минут - достаточно для акций
+  history_days: 365
+
+# Настройки нейросетей
+neural_networks:
+  models:
+    - name: lstm_predictor
+      type: lstm
+      weight: 0.3
+      enabled: true
+      sequence_length: 60
+      lstm_units: [50, 50]
+      dropout_rate: 0.2
+      learning_rate: 0.001
+      batch_size: 32
+      epochs: 100
+      
+    - name: deepseek_analyzer
+      type: deepseek
+      weight: 0.4
+      enabled: true
+      api_key: ${DEEPSEEK_API_KEY}  # Из переменной окружения
+      base_url: "https://api.deepseek.com/v1"
+      model_name: "deepseek-chat"
+      max_tokens: 4000
+      temperature: 0.3
+      analysis_window: 30
+      feature_importance_threshold: 0.1
+      
+    - name: xgboost_classifier
+      type: xgboost
+      weight: 0.3
+      enabled: true
+      n_estimators: 100
+      max_depth: 6
+      learning_rate: 0.1
+      subsample: 0.8
+      colsample_bytree: 0.8
+      buy_threshold: 0.05
+      sell_threshold: -0.05
+      
+  analysis_interval: 1800  # 30 минут - разумно для акций
+  ensemble_method: weighted_average  # weighted_average, majority_vote, confidence_weighted
+
+# Настройки торговли
+trading:
+  broker: paper  # paper, tinkoff, sber
+  signal_threshold: 0.6
+  signal_check_interval: 600  # 10 минут - разумно для акций
+  max_positions: 10
+  position_size: 0.1  # 10% от капитала на позицию
+  min_trade_interval: 3600  # 1 час между сделками по одному символу
+  
+  # Настройки для реального брокера
+  broker_settings:
+    tinkoff:
+      token: "your_tinkoff_token"
+      sandbox: true
+    sber:
+      token: "your_sber_token"
+      sandbox: true
+
+# Настройки портфеля
+portfolio:
+  initial_capital: 1000000  # 1 миллион рублей
+  max_risk_per_trade: 0.02  # 2% риска на сделку
+  max_portfolio_risk: 0.1   # 10% максимальный риск портфеля
+  update_interval: 1800     # 30 минут - достаточно для акций
+  rebalance_threshold: 0.05 # 5% отклонение для ребалансировки
+
+# Настройки логирования
+logging:
+  level: DEBUG
+  file: logs/investment_system.log
+  max_size: 10 MB
+  retention: 30 days
+  format: "{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} - {message}"
+
+# Настройки уведомлений
+notifications:
+  enabled: false
+  email:
+    smtp_server: "smtp.gmail.com"
+    smtp_port: 587
+    username: "frolov.fff@yandex.ru"
+    password: "Oleg1988.ge"
+    to_email: "frolov.fff@yandex.ru"
+  
+  telegram:
+    bot_token: "your_telegram_bot_token"
+    chat_id: "your_chat_id"
+
+# Настройки мониторинга
+monitoring:
+  enabled: true
+  web_interface:
+    enabled: true
+    host: "localhost"
+    port: 8080
+  
+  metrics:
+    enabled: true
+    export_interval: 60  # секунды
+

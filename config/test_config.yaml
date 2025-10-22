@@ -1,0 +1,100 @@
+# Тестовая конфигурация с минимальными интервалами для быстрого тестирования
+
+# Настройки данных
+data:
+  provider: yfinance
+  symbols:
+    - SBER
+    - GAZP
+    - LKOH
+  update_interval: 10   # 10 секунд - очень быстро для тестов
+  history_days: 30      # Меньше истории для быстрой загрузки
+
+# Настройки нейросетей
+neural_networks:
+  models:
+    - name: deepseek_analyzer
+      type: deepseek
+      weight: 0.6
+      enabled: true
+      api_key: ${DEEPSEEK_API_KEY}
+      base_url: "https://api.deepseek.com/v1"
+      model_name: "deepseek-chat"
+      max_tokens: 2000  # Меньше токенов для быстрого ответа
+      temperature: 0.3
+      analysis_window: 10  # Меньший период анализа
+      feature_importance_threshold: 0.1
+      
+    - name: xgboost_classifier
+      type: xgboost
+      weight: 0.4
+      enabled: true
+      n_estimators: 50   # Меньше деревьев для быстрого обучения
+      max_depth: 4       # Меньшая глубина
+      learning_rate: 0.1
+      subsample: 0.8
+      colsample_bytree: 0.8
+      buy_threshold: 0.05
+      sell_threshold: -0.05
+      
+  analysis_interval: 30   # 30 секунд - очень быстро для тестов
+  ensemble_method: weighted_average
+
+# Настройки торговли
+trading:
+  broker: paper
+  signal_threshold: 0.5   # Низкий порог для частых сигналов в тестах
+  signal_check_interval: 15  # 15 секунд - очень быстро
+  max_positions: 5        # Меньше позиций для тестов
+  position_size: 0.05     # 5% от капитала - маленькие позиции
+  min_trade_interval: 60  # 1 минута между сделками - быстро для тестов
+  
+  broker_settings:
+    tinkoff:
+      token: "your_tinkoff_token"
+      sandbox: true
+    sber:
+      token: "your_sber_token"
+      sandbox: true
+
+# Настройки портфеля
+portfolio:
+  initial_capital: 100000  # Меньший капитал для тестов
+  max_risk_per_trade: 0.01  # 1% риска на сделку - консервативно
+  max_portfolio_risk: 0.05   # 5% максимальный риск портфеля
+  update_interval: 30        # 30 секунд - очень быстро
+  rebalance_threshold: 0.02  # 2% отклонение для ребалансировки
+
+# Настройки логирования
+logging:
+  level: DEBUG  # Подробные логи для тестов
+  file: logs/test_system.log
+  max_size: 5 MB
+  retention: 7 days
+  format: "{time:HH:mm:ss} | {level} | {name}:{function}:{line} - {message}"
+
+# Настройки уведомлений
+notifications:
+  enabled: false  # Отключены для тестов
+  email:
+    smtp_server: "smtp.gmail.com"
+    smtp_port: 587
+    username: "frolov.fff@yandex.ru"
+    password: "Oleg1988.ge"
+    to_email: "frolov.fff@yandex.ru"
+  
+  telegram:
+    bot_token: "your_telegram_bot_token"
+    chat_id: "your_chat_id"
+
+# Настройки мониторинга
+monitoring:
+  enabled: true
+  web_interface:
+    enabled: false  # Отключен для тестов
+    host: "localhost"
+    port: 8080
+  
+  metrics:
+    enabled: true
+    export_interval: 30  # 30 секунд

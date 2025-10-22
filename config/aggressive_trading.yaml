@@ -1,0 +1,100 @@
+# Агрессивная конфигурация для частой торговли акциями
+
+# Настройки данных
+data:
+  provider: yfinance
+  symbols:
+    - SBER
+    - GAZP
+    - LKOH
+  update_interval: 60   # 1 минута - для активной торговли
+  history_days: 365
+
+# Настройки нейросетей
+neural_networks:
+  models:
+    - name: deepseek_analyzer
+      type: deepseek
+      weight: 0.5
+      enabled: true
+      api_key: ${DEEPSEEK_API_KEY}
+      base_url: "https://api.deepseek.com/v1"
+      model_name: "deepseek-chat"
+      max_tokens: 4000
+      temperature: 0.3
+      analysis_window: 15
+      feature_importance_threshold: 0.1
+      
+    - name: xgboost_classifier
+      type: xgboost
+      weight: 0.5
+      enabled: true
+      n_estimators: 200
+      max_depth: 8
+      learning_rate: 0.05
+      subsample: 0.8
+      colsample_bytree: 0.8
+      buy_threshold: 0.03
+      sell_threshold: -0.03
+      
+  analysis_interval: 300   # 5 минут - для активной торговли
+  ensemble_method: weighted_average
+
+# Настройки торговли
+trading:
+  broker: paper
+  signal_threshold: 0.55   # Более низкий порог для частых сигналов
+  signal_check_interval: 120  # 2 минуты - для активной торговли
+  max_positions: 15
+  position_size: 0.05      # 5% от капитала на позицию - меньше риска
+  min_trade_interval: 1800  # 30 минут между сделками по одному символу
+  
+  broker_settings:
+    tinkoff:
+      token: "your_tinkoff_token"
+      sandbox: true
+    sber:
+      token: "your_sber_token"
+      sandbox: true
+
+# Настройки портфеля
+portfolio:
+  initial_capital: 1000000
+  max_risk_per_trade: 0.01  # 1% риска на сделку - консервативно
+  max_portfolio_risk: 0.05   # 5% максимальный риск портфеля
+  update_interval: 300       # 5 минут
+  rebalance_threshold: 0.03  # 3% отклонение для ребалансировки
+
+# Настройки логирования
+logging:
+  level: DEBUG
+  file: logs/investment_system.log
+  max_size: 10 MB
+  retention: 30 days
+  format: "{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} - {message}"
+
+# Настройки уведомлений
+notifications:
+  enabled: false
+  email:
+    smtp_server: "smtp.gmail.com"
+    smtp_port: 587
+    username: "frolov.fff@yandex.ru"
+    password: "Oleg1988.ge"
+    to_email: "frolov.fff@yandex.ru"
+  
+  telegram:
+    bot_token: "your_telegram_bot_token"
+    chat_id: "your_chat_id"
+
+# Настройки мониторинга
+monitoring:
+  enabled: true
+  web_interface:
+    enabled: true
+    host: "localhost"
+    port: 8080
+  
+  metrics:
+    enabled: true
+    export_interval: 60

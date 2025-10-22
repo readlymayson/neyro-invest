@@ -1,0 +1,15 @@
+# Минимальные зависимости для GUI системы нейросетевых инвестиций
+
+# Основные библиотеки
+numpy
+pandas
+matplotlib
+loguru
+pyyaml
+requests
+
+# Опционально для расширенного функционала
+# yfinance
+# scikit-learn
+# pillow
+# psutil
