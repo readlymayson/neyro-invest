@@ -44,10 +44,10 @@ neural_networks:
 trading:
   broker: paper
   signal_threshold: 0.5   # Низкий порог для частых сигналов в тестах
-  signal_check_interval: 15  # 15 секунд - очень быстро
+  signal_check_interval: 60  # 15 секунд - очень быстро
   max_positions: 5        # Меньше позиций для тестов
   position_size: 0.05     # 5% от капитала - маленькие позиции
-  min_trade_interval: 60  # 1 минута между сделками - быстро для тестов
+  min_trade_interval: 180  # 1 минута между сделками - быстро для тестов
   
   broker_settings:
     tinkoff:

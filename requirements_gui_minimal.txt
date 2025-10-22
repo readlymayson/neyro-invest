@@ -12,4 +12,4 @@ requests
 # yfinance
 # scikit-learn
 # pillow
-# psutil
+psutil

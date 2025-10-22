@@ -336,13 +336,19 @@ def main():
     
     # Интерактивный выбор конфигурации
     if args.select_config or not args.config:
-        selector = ConfigSelector()
-        selected_config = selector.select_config()
-        if selected_config:
-            args.config = selected_config
+        # Используем тестовую конфигурацию по умолчанию для быстрого старта
+        if not args.select_config and not args.config:
+            print("✅ Используется тестовая конфигурация по умолчанию (быстрый режим)")
+            print("   Для выбора другой конфигурации используйте: python run.py --select-config")
+            args.config = "config/test_config.yaml"
         else:
-            print("❌ Конфигурация не выбрана. Использую стандартную конфигурацию.")
-            args.config = "config/main.yaml"
+            selector = ConfigSelector()
+            selected_config = selector.select_config()
+            if selected_config:
+                args.config = selected_config
+            else:
+                print("❌ Конфигурация не выбрана. Использую тестовую конфигурацию.")
+                args.config = "config/test_config.yaml"
     
     # Настройка логирования
     setup_logging(args.config)

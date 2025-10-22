@@ -6,6 +6,8 @@ from typing import Dict, List, Optional
 from loguru import logger
 import asyncio
 from datetime import datetime
+import json
+from pathlib import Path
 
 from ..data.data_provider import DataProvider
 from ..neural_networks.network_manager import NetworkManager
@@ -131,6 +133,11 @@ class InvestmentSystem:
             asyncio.create_task(self._portfolio_loop())
         )
         
+        # Задача экспорта данных для GUI
+        self.tasks.append(
+            asyncio.create_task(self._export_loop())
+        )
+        
         logger.info("Основные задачи запущены")
     
     async def _data_update_loop(self):
@@ -199,6 +206,111 @@ class InvestmentSystem:
             except Exception as e:
                 logger.error(f"Ошибка управления портфелем: {e}")
                 await asyncio.sleep(60)
+    
+    async def _export_loop(self):
+        """
+        Цикл экспорта данных для GUI
+        """
+        while self.is_running:
+            try:
+                # Экспорт данных портфеля
+                await self._export_portfolio_data()
+                
+                # Экспорт торговых сигналов
+                await self._export_signals_data()
+                
+                # Экспорт каждые 10 секунд
+                await asyncio.sleep(10)
+            except Exception as e:
+                logger.error(f"Ошибка экспорта данных: {e}")
+                await asyncio.sleep(30)
+    
+    async def _export_portfolio_data(self):
+        """Экспорт данных портфеля в JSON"""
+        try:
+            # Создание директории data если её нет
+            data_dir = Path("data")
+            data_dir.mkdir(exist_ok=True)
+            
+            # Получение данных портфеля
+            portfolio_data = {
+                'total_value': self.portfolio_manager.cash_balance + sum(
+                    pos.market_value for pos in self.portfolio_manager.positions.values()
+                ),
+                'cash_balance': self.portfolio_manager.cash_balance,
+                'positions': {},
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            # Добавление позиций
+            for symbol, position in self.portfolio_manager.positions.items():
+                portfolio_data['positions'][symbol] = {
+                    'quantity': position.quantity,
+                    'price': position.current_price,
+                    'value': position.market_value,
+                    'pnl': position.unrealized_pnl,
+                    'pnl_percent': position.unrealized_pnl_percent
+                }
+            
+            # Сохранение в файл
+            portfolio_file = data_dir / "portfolio.json"
+            with open(portfolio_file, 'w', encoding='utf-8') as f:
+                json.dump(portfolio_data, f, ensure_ascii=False, indent=2)
+            
+            logger.debug(f"Данные портфеля экспортированы: {portfolio_data['total_value']:.2f}")
+            
+        except Exception as e:
+            logger.error(f"Ошибка экспорта данных портфеля: {e}")
+    
+    async def _export_signals_data(self):
+        """Экспорт торговых сигналов в JSON"""
+        try:
+            # Создание директории data если её нет
+            data_dir = Path("data")
+            data_dir.mkdir(exist_ok=True)
+            
+            # Получение торговых сигналов (возвращает список объектов TradingSignal)
+            signals = await self.trading_engine.get_trading_signals()
+            
+            signals_data = []
+            if signals:
+                for signal in signals:
+                    signals_data.append({
+                        'time': signal.timestamp.strftime("%H:%M:%S"),
+                        'symbol': signal.symbol,
+                        'signal': signal.signal,
+                        'confidence': signal.confidence,
+                        'action': f"Сигнал: {signal.signal}",
+                        'price': signal.price if signal.price else 0.0,
+                        'strength': signal.strength,
+                        'source': signal.source
+                    })
+            
+            # Загрузка существующих сигналов
+            signals_file = data_dir / "signals.json"
+            existing_signals = []
+            if signals_file.exists():
+                try:
+                    with open(signals_file, 'r', encoding='utf-8') as f:
+                        existing_signals = json.load(f)
+                except:
+                    existing_signals = []
+            
+            # Добавление новых сигналов
+            existing_signals.extend(signals_data)
+            
+            # Храним только последние 50 сигналов
+            existing_signals = existing_signals[-50:]
+            
+            # Сохранение в файл
+            with open(signals_file, 'w', encoding='utf-8') as f:
+                json.dump(existing_signals, f, ensure_ascii=False, indent=2)
+            
+            if signals_data:
+                logger.debug(f"Экспортировано {len(signals_data)} сигналов")
+            
+        except Exception as e:
+            logger.error(f"Ошибка экспорта торговых сигналов: {e}")
     
     def get_system_status(self) -> Dict:
         """

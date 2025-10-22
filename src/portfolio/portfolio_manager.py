@@ -133,7 +133,7 @@ class PortfolioManager:
             
             # Расчет позиций для каждого символа
             for symbol, transactions in symbol_transactions.items():
-                position = self._calculate_symbol_position(symbol, transactions)
+                position = await self._calculate_symbol_position(symbol, transactions)
                 if position and position.quantity != 0:
                     self.positions[symbol] = position
             
@@ -142,7 +142,7 @@ class PortfolioManager:
         except Exception as e:
             logger.error(f"Ошибка расчета позиций: {e}")
     
-    def _calculate_symbol_position(self, symbol: str, transactions: List[Transaction]) -> Optional[Position]:
+    async def _calculate_symbol_position(self, symbol: str, transactions: List[Transaction]) -> Optional[Position]:
         """
         Расчет позиции по символу
         
@@ -178,7 +178,7 @@ class PortfolioManager:
             average_price = (total_cost + total_commission) / total_quantity if total_quantity > 0 else 0
             
             # Получение текущей цены (здесь нужна интеграция с провайдером данных)
-            current_price = self._get_current_price(symbol)
+            current_price = await self._get_current_price(symbol)
             
             # Расчет метрик позиции
             market_value = total_quantity * current_price
@@ -200,7 +200,7 @@ class PortfolioManager:
             logger.error(f"Ошибка расчета позиции для {symbol}: {e}")
             return None
     
-    def _get_current_price(self, symbol: str) -> float:
+    async def _get_current_price(self, symbol: str) -> float:
         """
         Получение текущей цены инструмента
         
