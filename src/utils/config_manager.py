@@ -83,21 +83,15 @@ class ConfigManager:
             'neural_networks': {
                 'models': [
                     {
-                        'name': 'lstm_predictor',
-                        'type': 'lstm',
-                        'weight': 0.3,
-                        'enabled': True
-                    },
-                    {
-                        'name': 'transformer_model',
-                        'type': 'transformer',
-                        'weight': 0.4,
+                        'name': 'deepseek_analyzer',
+                        'type': 'deepseek',
+                        'weight': 0.5,
                         'enabled': True
                     },
                     {
                         'name': 'xgboost_classifier',
                         'type': 'xgboost',
-                        'weight': 0.3,
+                        'weight': 0.5,
                         'enabled': True
                     }
                 ],

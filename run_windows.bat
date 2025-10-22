@@ -42,7 +42,6 @@ if not exist "requirements.txt" (
 
 REM Установка зависимостей (если нужно)
 echo 🔍 Проверка зависимостей...
-pip show tensorflow >nul 2>&1
 if errorlevel 1 (
     echo 📦 Установка зависимостей...
     pip install -r requirements.txt

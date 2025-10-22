@@ -87,31 +87,32 @@ async def test_single_model():
         # Получение данных для тестирования
         historical_data = await data_provider.get_latest_data()
         
-        # Тестирование LSTM модели
-        from src.neural_networks.lstm_network import LSTMNetwork
+        # Тестирование XGBoost модели
+        from src.neural_networks.xgboost_network import XGBoostNetwork
         
-        lstm_config = {
-            'sequence_length': 60,
-            'lstm_units': [50, 50],
-            'dropout_rate': 0.2,
-            'learning_rate': 0.001,
-            'batch_size': 32,
-            'epochs': 50
+        xgboost_config = {
+            'n_estimators': 100,
+            'max_depth': 6,
+            'learning_rate': 0.1,
+            'subsample': 0.8,
+            'colsample_bytree': 0.8,
+            'buy_threshold': 0.05,
+            'sell_threshold': -0.05
         }
         
-        lstm_model = LSTMNetwork("test_lstm", lstm_config)
-        await lstm_model.initialize()
+        xgboost_model = XGBoostNetwork("test_xgboost", xgboost_config)
+        await xgboost_model.initialize()
         
         # Обучение модели
         if historical_data.get('historical'):
             for symbol, data in historical_data['historical'].items():
                 if not data.empty:
                     logger.info(f"Обучение модели на данных {symbol}")
-                    metrics = await lstm_model.train(data)
+                    metrics = await xgboost_model.train(data)
                     logger.info(f"Метрики обучения: {metrics}")
                     
                     # Тестирование предсказания
-                    prediction = await lstm_model.predict(data.tail(100))
+                    prediction = await xgboost_model.predict(data.tail(100))
                     logger.info(f"Предсказание: {prediction}")
                     break
         

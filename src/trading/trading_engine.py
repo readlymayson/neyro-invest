@@ -12,6 +12,13 @@ import pandas as pd
 from ..data.data_provider import DataProvider
 from ..portfolio.portfolio_manager import PortfolioManager
 
+try:
+    from .tbank_broker import TBankBroker
+    TBANK_AVAILABLE = True
+except ImportError:
+    TBANK_AVAILABLE = False
+    logger.warning("T-Bank брокер недоступен")
+
 
 class OrderType(Enum):
     """Типы ордеров"""
@@ -132,6 +139,10 @@ class TradingEngine:
         self.data_provider: Optional[DataProvider] = None
         self.portfolio_manager: Optional[PortfolioManager] = None
         
+        # T-Bank брокер
+        self.tbank_broker: Optional['TBankBroker'] = None
+        self.broker_settings = config.get('broker_settings', {})
+        
         logger.info(f"Торговый движок инициализирован (брокер: {self.broker_type})")
     
     async def initialize(self):
@@ -154,9 +165,36 @@ class TradingEngine:
         """
         if self.broker_type == 'paper':
             logger.info("Используется бумажный торговый брокер")
-        elif self.broker_type == 'tinkoff':
-            logger.info("Инициализация подключения к Tinkoff API")
-            # Здесь будет инициализация реального брокера
+        elif self.broker_type == 'tinkoff' or self.broker_type == 'tbank':
+            if not TBANK_AVAILABLE:
+                logger.error("T-Bank брокер недоступен. Установите библиотеку: pip install tinkoff-investments")
+                return
+            
+            logger.info("Инициализация подключения к T-Bank (Tinkoff) API")
+            
+            # Получение настроек брокера
+            tbank_settings = self.broker_settings.get('tinkoff', {})
+            token = tbank_settings.get('token', '')
+            sandbox = tbank_settings.get('sandbox', True)
+            account_id = tbank_settings.get('account_id', None)
+            
+            if not token:
+                logger.error("T-Bank токен не указан в конфигурации")
+                return
+            
+            # Создание брокера
+            self.tbank_broker = TBankBroker(
+                token=token,
+                sandbox=sandbox,
+                account_id=account_id
+            )
+            
+            # Инициализация брокера
+            await self.tbank_broker.initialize()
+            
+            mode = "SANDBOX" if sandbox else "PRODUCTION"
+            logger.info(f"T-Bank брокер инициализирован в режиме {mode}")
+            
         elif self.broker_type == 'sber':
             logger.info("Инициализация подключения к Сбербанк Инвестор")
             # Здесь будет инициализация реального брокера
@@ -184,34 +222,40 @@ class TradingEngine:
     
     async def update_predictions(self, predictions: Dict[str, Any]):
         """
-        Обновление предсказаний от нейросетей
+        Обновление предсказаний от нейросетей для всех символов
         
         Args:
-            predictions: Предсказания от нейросетей
+            predictions: Предсказания от нейросетей по всем символам
         """
         try:
-            if 'individual_predictions' not in predictions:
-                logger.warning("Нет индивидуальных предсказаний в данных")
-                return
+            # Очищаем старые сигналы
+            self.trading_signals.clear()
             
-            # Обработка предсказаний каждой модели
-            for model_name, model_prediction in predictions['individual_predictions'].items():
-                if 'error' in model_prediction:
-                    continue
-                
-                # Создание торгового сигнала
-                signal = self._create_trading_signal(model_prediction, model_name)
-                if signal:
-                    self.trading_signals[model_name] = signal
+            # Обработка предсказаний каждой модели для каждого символа
+            if 'individual_predictions' in predictions:
+                for model_name, symbols_predictions in predictions['individual_predictions'].items():
+                    # symbols_predictions - это словарь {symbol: prediction}
+                    for symbol, prediction in symbols_predictions.items():
+                        if 'error' in prediction:
+                            continue
+                        
+                        # Создание торгового сигнала
+                        signal = self._create_trading_signal(prediction, model_name)
+                        if signal:
+                            # Ключ с именем модели и символом
+                            key = f"{model_name}_{symbol}"
+                            self.trading_signals[key] = signal
             
-            # Обработка ансамблевого предсказания
-            if 'ensemble_prediction' in predictions:
-                ensemble_signal = self._create_trading_signal(
-                    predictions['ensemble_prediction'], 
-                    'ensemble'
-                )
-                if ensemble_signal:
-                    self.trading_signals['ensemble'] = ensemble_signal
+            # Обработка ансамблевых предсказаний (теперь по символам)
+            if 'ensemble_predictions' in predictions:
+                for symbol, ensemble_pred in predictions['ensemble_predictions'].items():
+                    ensemble_signal = self._create_trading_signal(
+                        ensemble_pred, 
+                        'ensemble'
+                    )
+                    if ensemble_signal:
+                        key = f"ensemble_{symbol}"
+                        self.trading_signals[key] = ensemble_signal
             
             logger.debug(f"Обновлено {len(self.trading_signals)} торговых сигналов")
             
@@ -401,6 +445,12 @@ class TradingEngine:
             if signal.signal == 'HOLD':
                 return
             
+            # Проверка на запрет коротких продаж (маржинальной торговли)
+            if signal.signal == 'SELL':
+                if not await self._can_sell(signal.symbol):
+                    logger.warning(f"Невозможно продать {signal.symbol}: недостаточно акций (запрет коротких продаж)")
+                    return
+            
             # Расчет размера позиции
             position_size = await self._calculate_position_size(signal)
             if position_size <= 0:
@@ -434,6 +484,28 @@ class TradingEngine:
             if not self.portfolio_manager:
                 return 0.0
             
+            # Для продажи - проверяем доступное количество
+            if signal.signal == 'SELL':
+                positions = self.portfolio_manager.positions
+                if signal.symbol not in positions:
+                    logger.debug(f"Нет позиции {signal.symbol} для продажи")
+                    return 0.0
+                
+                # Возвращаем количество акций в позиции (или его часть)
+                available_quantity = positions[signal.symbol].quantity
+                if available_quantity <= 0:
+                    logger.debug(f"Недостаточно акций {signal.symbol} для продажи: {available_quantity}")
+                    return 0.0
+                
+                # Продаем всю позицию или часть (в зависимости от конфигурации)
+                sell_quantity = int(available_quantity * self.position_size)
+                if sell_quantity < 1:
+                    sell_quantity = int(available_quantity)  # Продаем все если меньше 1
+                
+                logger.debug(f"Размер позиции для продажи {signal.symbol}: {sell_quantity} из {available_quantity}")
+                return float(sell_quantity)
+            
+            # Для покупки - расчет как процент от капитала
             # Получение текущего капитала
             portfolio_value = await self.portfolio_manager.get_portfolio_value()
             
@@ -460,6 +532,42 @@ class TradingEngine:
         except Exception as e:
             logger.error(f"Ошибка расчета размера позиции: {e}")
             return 0.0
+    
+    async def _can_sell(self, symbol: str) -> bool:
+        """
+        Проверка возможности продажи инструмента (есть ли позиция)
+        Запрет коротких продаж (маржинальной торговли)
+        
+        Args:
+            symbol: Тикер инструмента
+            
+        Returns:
+            True если можно продавать (есть позиция), False иначе
+        """
+        try:
+            if not self.portfolio_manager:
+                return False
+            
+            # Получаем текущие позиции
+            positions = self.portfolio_manager.positions
+            
+            # Проверяем наличие позиции по символу
+            if symbol not in positions:
+                logger.debug(f"Позиция {symbol} не найдена в портфеле, продажа запрещена")
+                return False
+            
+            # Проверяем что количество положительное (не short позиция)
+            position = positions[symbol]
+            if position.quantity <= 0:
+                logger.debug(f"Позиция {symbol} имеет нулевое или отрицательное количество: {position.quantity}, продажа запрещена")
+                return False
+            
+            logger.debug(f"Позиция {symbol} доступна для продажи: {position.quantity} акций")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Ошибка проверки возможности продажи {symbol}: {e}")
+            return False
     
     async def _get_current_price(self, symbol: str) -> float:
         """
@@ -573,12 +681,70 @@ class TradingEngine:
             order: Ордер для выполнения
         """
         try:
-            # Здесь будет интеграция с реальным брокером
-            logger.warning("Выполнение реальных ордеров не реализовано")
-            order.status = OrderStatus.REJECTED
+            if self.broker_type in ['tinkoff', 'tbank'] and self.tbank_broker:
+                await self._execute_tbank_order(order)
+            else:
+                logger.warning(f"Выполнение реальных ордеров для брокера {self.broker_type} не реализовано")
+                order.status = OrderStatus.REJECTED
             
         except Exception as e:
             logger.error(f"Ошибка выполнения реального ордера: {e}")
+            order.status = OrderStatus.REJECTED
+    
+    async def _execute_tbank_order(self, order: Order):
+        """
+        Выполнение ордера через T-Bank API
+        
+        Args:
+            order: Ордер для выполнения
+        """
+        try:
+            if not self.tbank_broker:
+                logger.error("T-Bank брокер не инициализирован")
+                order.status = OrderStatus.REJECTED
+                return
+            
+            # Конвертация количества в целое (лоты)
+            lots = int(order.quantity)
+            if lots < 1:
+                logger.warning(f"Количество лотов меньше 1: {order.quantity}")
+                order.status = OrderStatus.REJECTED
+                return
+            
+            # Размещение ордера
+            order_info = await self.tbank_broker.place_order(
+                ticker=order.symbol,
+                quantity=lots,
+                direction=order.side.value,
+                order_type=order.order_type.value,
+                price=order.price
+            )
+            
+            if order_info:
+                # Обновление информации об ордере
+                order.filled_price = order_info.get('execution_price', order.price)
+                order.filled_quantity = order.quantity
+                order.filled_at = datetime.now()
+                order.status = OrderStatus.FILLED
+                order.commission = order_info.get('total_commission', 0)
+                
+                # Обновление портфеля
+                if self.portfolio_manager:
+                    await self._update_portfolio_from_order(order)
+                
+                # Обновление времени последней сделки
+                self.last_trade_time[order.symbol] = datetime.now()
+                
+                logger.info(
+                    f"T-Bank ордер {order_info.get('order_id')} выполнен: "
+                    f"{order.filled_quantity} @ {order.filled_price}"
+                )
+            else:
+                logger.error(f"Не удалось разместить ордер через T-Bank")
+                order.status = OrderStatus.REJECTED
+            
+        except Exception as e:
+            logger.error(f"Ошибка выполнения T-Bank ордера: {e}")
             order.status = OrderStatus.REJECTED
     
     async def _update_portfolio_from_order(self, order: Order):

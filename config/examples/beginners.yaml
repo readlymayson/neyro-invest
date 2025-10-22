@@ -13,20 +13,9 @@ data:
 # Настройки нейросетей (упрощенные)
 neural_networks:
   models:
-    - name: lstm_beginners
-      type: lstm
-      weight: 0.6
-      enabled: true
-      sequence_length: 30     # Меньше данных для анализа
-      lstm_units: [32, 32]    # Меньше нейронов
-      dropout_rate: 0.3       # Больше дропаута
-      learning_rate: 0.001
-      batch_size: 64          # Больший батч
-      epochs: 50              # Меньше эпох для быстрого обучения
-      
     - name: xgb_beginners
       type: xgboost
-      weight: 0.3
+      weight: 0.5
       enabled: true
       n_estimators: 50        # Меньше деревьев
       max_depth: 4            # Меньше глубина
@@ -38,7 +27,7 @@ neural_networks:
       
     - name: deepseek_beginners
       type: deepseek
-      weight: 0.3
+      weight: 0.5
       enabled: true
       api_key: ${DEEPSEEK_API_KEY}
       model_name: "deepseek-chat"

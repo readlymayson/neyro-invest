@@ -13,7 +13,6 @@ import numpy as np
 import pandas as pd
 
 from .base_network import BaseNeuralNetwork
-# from .lstm_network import LSTMNetwork  # Временно отключено из-за проблем с TensorFlow
 from .xgboost_network import XGBoostNetwork
 from .deepseek_network import DeepSeekNetwork
 
@@ -57,10 +56,7 @@ class NetworkManager:
             model_type = model_config['type']
             
             try:
-                if model_type == 'lstm':
-                    logger.warning(f"LSTM модели временно отключены из-за проблем с TensorFlow")
-                    continue
-                elif model_type == 'xgboost':
+                if model_type == 'xgboost':
                     model = XGBoostNetwork(model_name, model_config)
                 elif model_type == 'deepseek':
                     model = DeepSeekNetwork(model_name, model_config)
@@ -161,19 +157,19 @@ class NetworkManager:
     
     async def analyze(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Анализ данных всеми моделями
+        Анализ данных всеми моделями для всех символов
         
         Args:
             data: Входные данные
             
         Returns:
-            Результаты анализа от всех моделей
+            Результаты анализа от всех моделей по каждому символу
         """
         try:
             logger.debug("Начало анализа данных нейросетями")
             
             # Анализ каждой моделью
-            predictions = {}
+            predictions_by_model = {}
             analysis_tasks = []
             
             for model_name, model in self.models.items():
@@ -188,28 +184,41 @@ class NetworkManager:
             # Параллельный анализ всеми моделями
             for model_name, task in analysis_tasks:
                 try:
-                    prediction = await task
-                    predictions[model_name] = prediction
+                    prediction = await task  # Теперь это словарь {symbol: prediction}
+                    predictions_by_model[model_name] = prediction
                 except Exception as e:
                     logger.error(f"Ошибка анализа модели {model_name}: {e}")
-                    predictions[model_name] = {
-                        'error': str(e),
-                        'confidence': 0.0
-                    }
+                    predictions_by_model[model_name] = {}
             
-            # Ансамблевое предсказание
-            ensemble_prediction = self._create_ensemble_prediction(predictions)
+            # Получаем список всех символов
+            all_symbols = set()
+            for model_predictions in predictions_by_model.values():
+                all_symbols.update(model_predictions.keys())
+            
+            # Ансамблевое предсказание для каждого символа
+            ensemble_predictions = {}
+            for symbol in all_symbols:
+                # Собираем предсказания всех моделей для этого символа
+                symbol_predictions = {}
+                for model_name, model_data in predictions_by_model.items():
+                    if symbol in model_data:
+                        symbol_predictions[model_name] = model_data[symbol]
+                
+                # Создаем ансамбль для символа
+                ensemble_predictions[symbol] = self._create_ensemble_prediction(symbol_predictions)
+                ensemble_predictions[symbol]['symbol'] = symbol
             
             # Сохранение результатов
             self.last_analysis = {
-                'individual_predictions': predictions,
-                'ensemble_prediction': ensemble_prediction,
-                'models_used': list(predictions.keys()),
+                'individual_predictions': predictions_by_model,
+                'ensemble_predictions': ensemble_predictions,  # Теперь по символам
+                'symbols_analyzed': list(all_symbols),
+                'models_used': list(predictions_by_model.keys()),
                 'analysis_time': datetime.now().isoformat()
             }
             self.last_analysis_time = datetime.now()
             
-            logger.debug(f"Анализ завершен. Использовано моделей: {len(predictions)}")
+            logger.debug(f"Анализ завершен. Проанализировано символов: {len(all_symbols)}, использовано моделей: {len(predictions_by_model)}")
             
             return self.last_analysis
             
@@ -217,33 +226,49 @@ class NetworkManager:
             logger.error(f"Ошибка анализа данных: {e}")
             return {
                 'error': str(e),
-                'ensemble_prediction': {'signal': 'HOLD', 'confidence': 0.0},
+                'ensemble_predictions': {},
                 'individual_predictions': {},
+                'symbols_analyzed': [],
                 'models_used': []
             }
     
     async def _analyze_single_model(self, model: BaseNeuralNetwork, data: Dict[str, Any]):
         """
-        Анализ одной модели
+        Анализ одной модели для всех символов
         
         Args:
             model: Модель для анализа
             data: Входные данные
             
         Returns:
-            Результат анализа модели
+            Словарь с результатами анализа по каждому символу
         """
         try:
             # Подготовка данных для модели
             if 'historical' in data and isinstance(data['historical'], dict):
-                # Использование данных последнего символа для анализа
-                latest_symbol = list(data['historical'].keys())[-1]
-                latest_data = data['historical'][latest_symbol]
+                predictions_by_symbol = {}
                 
-                if not latest_data.empty:
-                    return await model.predict(latest_data)
-                else:
+                # Анализируем каждый символ отдельно
+                for symbol, symbol_data in data['historical'].items():
+                    if not symbol_data.empty:
+                        try:
+                            prediction = await model.predict(symbol_data)
+                            prediction['symbol'] = symbol  # Добавляем информацию о символе
+                            predictions_by_symbol[symbol] = prediction
+                            logger.debug(f"Модель {model.name} проанализировала {symbol}: {prediction.get('signal', 'N/A')}")
+                        except Exception as e:
+                            logger.error(f"Ошибка анализа {symbol} моделью {model.name}: {e}")
+                            predictions_by_symbol[symbol] = {
+                                'error': str(e),
+                                'confidence': 0.0,
+                                'signal': 'HOLD',
+                                'symbol': symbol
+                            }
+                
+                if not predictions_by_symbol:
                     raise ValueError(f"Нет данных для анализа в модели {model.name}")
+                
+                return predictions_by_symbol
             else:
                 raise ValueError(f"Неправильный формат данных для модели {model.name}")
                 
@@ -317,7 +342,7 @@ class NetworkManager:
                 weight = weights.get(model_name, 1.0)
                 total_weight += weight
                 
-                # Обработка предсказаний цен (LSTM)
+                # Обработка предсказаний цен
                 if 'next_price' in prediction:
                     weighted_price += prediction['next_price'] * weight
                 

@@ -141,7 +141,7 @@ def validate_neural_networks_section(nn_config: Dict[str, Any]) -> bool:
         
         # Проверка типа модели
         model_type = model['type']
-        if model_type not in ['lstm', 'xgboost', 'deepseek', 'transformer']:
+        if model_type not in ['xgboost', 'deepseek', 'transformer']:
             print(f"❌ Модель {i+1}: неизвестный тип {model_type}")
             return False
         
@@ -156,12 +156,8 @@ def validate_neural_networks_section(nn_config: Dict[str, Any]) -> bool:
         if model['enabled']:
             enabled_models += 1
         
-        # Специфичные проверки для LSTM
-        if model_type == 'lstm':
-            validate_lstm_model(model, i+1)
-        
         # Специфичные проверки для XGBoost
-        elif model_type == 'xgboost':
+        if model_type == 'xgboost':
             validate_xgboost_model(model, i+1)
         
         # Специфичные проверки для DeepSeek
@@ -178,27 +174,6 @@ def validate_neural_networks_section(nn_config: Dict[str, Any]) -> bool:
     
     print(f"✅ Настройки нейросетей корректны ({enabled_models} моделей включено)")
     return True
-
-
-def validate_lstm_model(model: Dict[str, Any], model_num: int):
-    """Валидация LSTM модели"""
-    lstm_params = ['sequence_length', 'lstm_units', 'dropout_rate', 'learning_rate', 'batch_size', 'epochs']
-    
-    for param in lstm_params:
-        if param not in model:
-            print(f"⚠️  LSTM модель {model_num}: отсутствует параметр {param}")
-    
-    # Проверка sequence_length
-    if 'sequence_length' in model:
-        seq_len = model['sequence_length']
-        if not isinstance(seq_len, int) or seq_len < 10 or seq_len > 200:
-            print(f"⚠️  LSTM модель {model_num}: sequence_length должен быть от 10 до 200")
-    
-    # Проверка lstm_units
-    if 'lstm_units' in model:
-        units = model['lstm_units']
-        if not isinstance(units, list) or len(units) == 0:
-            print(f"⚠️  LSTM модель {model_num}: lstm_units должен быть непустым списком")
 
 
 def validate_xgboost_model(model: Dict[str, Any], model_num: int):

@@ -22,20 +22,9 @@ data:
 # Настройки нейросетей (продакшен)
 neural_networks:
   models:
-    - name: lstm_production
-      type: lstm
-      weight: 0.35
-      enabled: true
-      sequence_length: 180    # Максимум данных для анализа
-      lstm_units: [128, 128, 64]  # Оптимальная архитектура
-      dropout_rate: 0.15
-      learning_rate: 0.0005   # Меньше скорость для стабильности
-      batch_size: 16          # Меньший батч для лучшего обучения
-      epochs: 200             # Максимум эпох
-      
     - name: xgb_production
       type: xgboost
-      weight: 0.35
+      weight: 0.5
       enabled: true
       n_estimators: 500       # Максимум деревьев
       max_depth: 10           # Максимальная глубина
@@ -47,7 +36,7 @@ neural_networks:
       
     - name: deepseek_production
       type: deepseek
-      weight: 0.35
+      weight: 0.5
       enabled: true
       api_key: ${DEEPSEEK_API_KEY}
       model_name: "deepseek-chat"

@@ -13,20 +13,9 @@ data:
 # Настройки нейросетей
 neural_networks:
   models:
-    - name: lstm_predictor
-      type: lstm
-      weight: 0.3
-      enabled: true
-      sequence_length: 60
-      lstm_units: [50, 50]
-      dropout_rate: 0.2
-      learning_rate: 0.001
-      batch_size: 32
-      epochs: 100
-      
     - name: deepseek_analyzer
       type: deepseek
-      weight: 0.4
+      weight: 0.5
       enabled: true
       api_key: ${DEEPSEEK_API_KEY}  # Из переменной окружения
       base_url: "https://api.deepseek.com/v1"
@@ -38,7 +27,7 @@ neural_networks:
       
     - name: xgboost_classifier
       type: xgboost
-      weight: 0.3
+      weight: 0.5
       enabled: true
       n_estimators: 100
       max_depth: 6
@@ -63,8 +52,15 @@ trading:
   # Настройки для реального брокера
   broker_settings:
     tinkoff:
-      token: "your_tinkoff_token"
-      sandbox: true
+      token: ${TINKOFF_TOKEN}  # Из переменной окружения
+      sandbox: true            # Использовать песочницу T-Bank
+      account_id: null         # Будет создан автоматически в sandbox
+      # Документация: https://developer.tbank.ru/invest/intro/developer/sandbox
+      # В песочнице:
+      # - Виртуальные счета (хранятся 3 месяца)
+      # - Комиссия 0.05% от объема
+      # - Маржинальная торговля с плечом 2
+      # - Нет дивидендов и купонов
     sber:
       token: "your_sber_token"
       sandbox: true

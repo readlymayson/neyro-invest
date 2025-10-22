@@ -301,8 +301,9 @@ class PortfolioManager:
                 if current_price > 0:
                     position.current_price = current_price
                     position.market_value = position.quantity * current_price
+                    position_cost = abs(position.quantity * position.average_price)
                     position.unrealized_pnl = position.market_value - (position.quantity * position.average_price)
-                    position.unrealized_pnl_percent = (position.unrealized_pnl / (position.quantity * position.average_price)) * 100
+                    position.unrealized_pnl_percent = (position.unrealized_pnl / position_cost) * 100 if position_cost > 0 else 0
                     position.last_updated = datetime.now()
             
         except Exception as e:

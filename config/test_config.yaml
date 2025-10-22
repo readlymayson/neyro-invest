@@ -2,12 +2,19 @@
 
 # Настройки данных
 data:
-  provider: yfinance
+  provider: russian  # Используем российский провайдер для MOEX акций
   symbols:
-    - SBER
-    - GAZP
-    - LKOH
-  update_interval: 10   # 10 секунд - очень быстро для тестов
+    - SBER   # Сбербанк
+    - GAZP   # Газпром
+    - LKOH   # Лукойл
+    - NVTK   # Новатэк
+    - ROSN   # Роснефть
+    - GMKN   # ГМК Норникель
+    - YNDX   # Яндекс
+    - MGNT   # Магнит
+    - TATN   # Татнефть
+    - SNGS   # Сургутнефтегаз
+  update_interval: 180  # 3 минуты (180 секунд)
   history_days: 30      # Меньше истории для быстрой загрузки
 
 # Настройки нейросетей
@@ -37,22 +44,29 @@ neural_networks:
       buy_threshold: 0.05
       sell_threshold: -0.05
       
-  analysis_interval: 30   # 30 секунд - очень быстро для тестов
+  analysis_interval: 180  # 3 минуты (180 секунд)
   ensemble_method: weighted_average
 
 # Настройки торговли
 trading:
-  broker: paper
+  broker: tinkoff  # Используем T-Bank песочницу!
   signal_threshold: 0.5   # Низкий порог для частых сигналов в тестах
-  signal_check_interval: 60  # 15 секунд - очень быстро
-  max_positions: 5        # Меньше позиций для тестов
-  position_size: 0.05     # 5% от капитала - маленькие позиции
-  min_trade_interval: 180  # 1 минута между сделками - быстро для тестов
+  signal_check_interval: 180  # 3 минуты (180 секунд)
+  max_positions: 10       # Больше позиций для разнообразия
+  position_size: 0.10     # 10% от капитала на позицию
+  min_trade_interval: 300  # 5 минут между сделками по одному символу
   
   broker_settings:
     tinkoff:
-      token: "your_tinkoff_token"
-      sandbox: true
+      token: ${TINKOFF_TOKEN}  # Из переменной окружения
+      sandbox: true            # Использовать песочницу T-Bank
+      account_id: "24fdd4b3-aba2-4410-ae91-d57a8190909b"  # Ваш sandbox счет (сохранен!)
+      # Адрес API (автоматически выбирается в зависимости от sandbox)
+      # sandbox: sandbox-invest-public-api.tbank.ru:443
+      # production: invest-public-api.tbank.ru:443
+      # 
+      # ℹ️ Счета в песочнице хранятся 3 месяца с даты последнего использования
+      # Если счет удалится - установите account_id: null для создания нового
     sber:
       token: "your_sber_token"
       sandbox: true
@@ -62,7 +76,7 @@ portfolio:
   initial_capital: 100000  # Меньший капитал для тестов
   max_risk_per_trade: 0.01  # 1% риска на сделку - консервативно
   max_portfolio_risk: 0.05   # 5% максимальный риск портфеля
-  update_interval: 30        # 30 секунд - очень быстро
+  update_interval: 180       # 3 минуты (180 секунд)
   rebalance_threshold: 0.02  # 2% отклонение для ребалансировки
 
 # Настройки логирования
@@ -97,4 +111,4 @@ monitoring:
   
   metrics:
     enabled: true
-    export_interval: 30  # 30 секунд
+    export_interval: 180  # 3 минуты (180 секунд)

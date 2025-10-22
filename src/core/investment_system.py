@@ -279,10 +279,10 @@ class InvestmentSystem:
                         'time': signal.timestamp.strftime("%H:%M:%S"),
                         'symbol': signal.symbol,
                         'signal': signal.signal,
-                        'confidence': signal.confidence,
+                        'confidence': float(signal.confidence),  # Конвертация в обычный float
                         'action': f"Сигнал: {signal.signal}",
-                        'price': signal.price if signal.price else 0.0,
-                        'strength': signal.strength,
+                        'price': float(signal.price) if signal.price else 0.0,
+                        'strength': float(signal.strength),
                         'source': signal.source
                     })
             
