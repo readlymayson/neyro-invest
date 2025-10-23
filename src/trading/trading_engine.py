@@ -3,6 +3,7 @@
 """
 
 import asyncio
+import os
 from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime, timedelta
 from loguru import logger
@@ -173,14 +174,19 @@ class TradingEngine:
             logger.info("Инициализация подключения к T-Bank (Tinkoff) API")
             
             # Получение настроек брокера
-            tbank_settings = self.broker_settings.get('tinkoff', {})
+            tbank_settings = self.broker_settings.get('tbank', {})
             token = tbank_settings.get('token', '')
             sandbox = tbank_settings.get('sandbox', True)
             account_id = tbank_settings.get('account_id', None)
             
+            # Если токен не найден в настройках, загружаем из переменной окружения
             if not token:
-                logger.error("T-Bank токен не указан в конфигурации")
-                return
+                token = os.environ.get('TINKOFF_TOKEN')
+                if not token:
+                    logger.error("T-Bank токен не указан в конфигурации и переменной окружения")
+                    return
+                else:
+                    logger.info("T-Bank токен загружен из переменной окружения TINKOFF_TOKEN")
             
             # Создание брокера
             self.tbank_broker = TBankBroker(

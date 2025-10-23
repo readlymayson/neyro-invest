@@ -1,0 +1,184 @@
+# Конфигурация для T-Bank провайдера с расширенными возможностями
+# Включает стакан заявок, множественные источники данных и расширенные признаки
+
+# Основные настройки системы
+system:
+  name: "T-Bank Sandbox Trading System"
+  version: "2.0"
+  mode: "test"  # production, test, development
+
+# Настройки провайдера данных
+data:
+  provider: "tbank"  # tbank, multi, yfinance, russian
+  symbols:
+    - SBER   # Сбербанк
+    - GAZP   # Газпром
+    - LKOH   # Лукойл
+    - NVTK   # Новатэк
+    - ROSN   # Роснефть
+    - GMKN   # ГМК Норникель
+    - VKCO   # ВК
+    - MGNT   # Магнит
+    - TATN   # Татнефть
+    - SNGS   # Сургутнефтегаз
+  
+  # T-Bank API настройки
+  tbank_token: "${TINKOFF_TOKEN}"  # Токен из переменной окружения
+  tbank_sandbox: true  # Использовать песочницу (sandbox)
+  tbank_orderbook_depth: 10  # Глубина стакана заявок
+  
+  # Настройки обновления данных
+  update_interval: 60  # секунд
+  history_days: 365  # дней исторических данных
+  
+  # Расширенные настройки
+  enhanced_features:
+    enable_orderbook: true  # Включить стакан заявок
+    enable_volume_analysis: true  # Анализ объемов
+    enable_microstructure: true  # Микроструктурный анализ
+    orderbook_depth: 10  # Глубина стакана
+    volume_periods: [5, 10, 20]  # Периоды для объемных индикаторов
+    price_periods: [5, 10, 20, 50]  # Периоды для ценовых индикаторов
+
+# Настройки нейросетей
+neural_networks:
+  models:
+    - name: "xgboost_enhanced"
+      type: "xgboost"
+      config:
+        n_estimators: 100
+        max_depth: 6
+        learning_rate: 0.1
+        subsample: 0.8
+        colsample_bytree: 0.8
+        random_state: 42
+        # Расширенные параметры для работы с большим количеством признаков
+        reg_alpha: 0.1
+        reg_lambda: 1.0
+        gamma: 0.1
+        min_child_weight: 3
+        # Пороги для классификации
+        buy_threshold: 0.05
+        sell_threshold: -0.05
+    
+    - name: "deepseek_enhanced"
+      type: "deepseek"
+      config:
+        model_name: "deepseek-coder"
+        max_tokens: 4000
+        temperature: 0.1
+        analysis_window: 100
+        # Расширенные параметры анализа
+        include_orderbook: true
+        include_volume_analysis: true
+        include_microstructure: true
+  
+  # Настройки ансамбля
+  ensemble:
+    method: "weighted_average"
+    weights:
+      xgboost_enhanced: 0.6
+      deepseek_enhanced: 0.4
+    confidence_threshold: 0.7
+
+# Настройки торговли
+trading:
+  broker: "tbank"
+  account_id: null  # Автоматически определяется для sandbox
+  sandbox_mode: true  # Режим песочницы
+  
+  # Настройки позиций
+  position_sizing:
+    method: "fixed_percentage"  # fixed_percentage, kelly, volatility
+    percentage: 0.1  # 10% от капитала на позицию
+    max_positions: 5  # Максимальное количество позиций
+    max_risk_per_trade: 0.02  # 2% риска на сделку
+  
+  # Настройки управления рисками
+  risk_management:
+    stop_loss: 0.05  # 5% стоп-лосс
+    take_profit: 0.15  # 15% тейк-профит
+    max_drawdown: 0.2  # 20% максимальная просадка
+    position_timeout: 7  # дней удержания позиции
+  
+  # Настройки сигналов
+  signals:
+    min_confidence: 0.6  # Минимальная уверенность для торговли
+    cooldown_period: 300  # секунд между сигналами
+    max_signals_per_day: 10  # Максимум сигналов в день
+
+# Настройки портфеля
+portfolio:
+  initial_capital: 1000000  # 1 млн рублей (sandbox)
+  currency: "RUB"
+  sandbox_mode: true  # Режим песочницы
+  
+  # Настройки ребалансировки
+  rebalancing:
+    enabled: true
+    frequency: "weekly"  # daily, weekly, monthly
+    threshold: 0.05  # 5% отклонение для ребалансировки
+  
+  # Настройки отчетности
+  reporting:
+    save_transactions: true
+    save_performance: true
+    log_level: "INFO"
+
+# Настройки логирования
+logging:
+  level: "INFO"
+  file: "logs/enhanced_trading.log"
+  max_size: "10MB"
+  backup_count: 5
+  
+  # Специальные логи
+  orderbook_log: "logs/orderbook.log"
+  features_log: "logs/features.log"
+  performance_log: "logs/performance.log"
+
+# Настройки веб-интерфейса
+web_interface:
+  enabled: true
+  host: "localhost"
+  port: 8080
+  debug: false
+  
+  # Расширенные возможности веб-интерфейса
+  features:
+    show_orderbook: true  # Показать стакан заявок
+    show_volume_analysis: true  # Анализ объемов
+    show_feature_importance: true  # Важность признаков
+    show_microstructure: true  # Микроструктурный анализ
+    real_time_updates: true  # Обновления в реальном времени
+
+# Настройки бэктестинга
+backtesting:
+  enabled: true
+  start_date: "2023-01-01"
+  end_date: "2024-01-01"
+  initial_capital: 1000000
+  commission: 0.0005  # 0.05% комиссия (sandbox)
+  sandbox_mode: true  # Режим песочницы
+  
+  # Расширенные настройки бэктестинга
+  features:
+    include_slippage: true  # Учет проскальзывания
+    include_orderbook_impact: true  # Влияние на стакан
+    realistic_execution: true  # Реалистичное исполнение
+
+# Настройки мониторинга
+monitoring:
+  enabled: true
+  alerts:
+    high_loss: 0.05  # Алерт при убытке 5%
+    low_confidence: 0.3  # Алерт при низкой уверенности
+    connection_error: true  # Алерт при ошибках соединения
+  
+  # Метрики производительности
+  metrics:
+    track_accuracy: true
+    track_profit_loss: true
+    track_drawdown: true
+    track_sharpe_ratio: true
+    track_max_drawdown: true

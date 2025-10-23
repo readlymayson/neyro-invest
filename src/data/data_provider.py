@@ -1,16 +1,19 @@
 """
 Провайдер данных для российского рынка
+Поддерживает множественные источники данных
 """
 
 import yfinance as yf
 import pandas as pd
 import numpy as np
+import os
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from loguru import logger
 import asyncio
 from abc import ABC, abstractmethod
 from .russian_data_provider import RussianDataProvider
+from .enhanced_tbank_provider import EnhancedTBankProvider, MultiProviderDataProvider
 
 
 class MarketDataProvider(ABC):
@@ -244,6 +247,7 @@ class YFinanceProvider(MarketDataProvider):
 class DataProvider:
     """
     Основной провайдер данных системы
+    Поддерживает множественные источники данных
     """
     
     def __init__(self, config: Dict):
@@ -257,10 +261,37 @@ class DataProvider:
         self.symbols = config.get('symbols', [])
         self.update_interval = config.get('update_interval', 60)
         self.history_days = config.get('history_days', 365)
-        provider_type = config.get('provider', 'yfinance').lower()
+        provider_type = config.get('provider', 'tbank').lower()
         
         # Инициализация провайдера в зависимости от типа
-        if provider_type == 'russian':
+        if provider_type == 'tbank':
+            # Используем T-Bank API как основной провайдер
+            token = config.get('tbank_token')
+            
+            # Если токен не указан в конфигурации, загружаем из переменной окружения
+            if not token:
+                token = os.environ.get('TINKOFF_TOKEN')
+                if not token:
+                    logger.warning("T-Bank токен не найден в конфигурации и переменной окружения, используем fallback провайдеры")
+                    self.provider = self._create_fallback_provider()
+                else:
+                    logger.info("T-Bank токен загружен из переменной окружения TINKOFF_TOKEN")
+                    sandbox = config.get('tbank_sandbox', True)
+                    self.provider = EnhancedTBankProvider(token, sandbox, self.symbols)
+                    logger.info(f"Используется T-Bank провайдер данных для {len(self.symbols)} инструментов")
+            else:
+                sandbox = config.get('tbank_sandbox', True)
+                # Поддержка автоматического определения счета
+                account_id = config.get('tbank_account_id')
+                if account_id is None:
+                    logger.info("Account ID не указан, будет определен автоматически")
+                self.provider = EnhancedTBankProvider(token, sandbox, self.symbols)
+                logger.info(f"Используется T-Bank провайдер данных для {len(self.symbols)} инструментов")
+        elif provider_type == 'multi':
+            # Множественный провайдер
+            self.provider = self._create_multi_provider()
+            logger.info("Используется множественный провайдер данных")
+        elif provider_type == 'russian':
             self.provider = RussianDataProvider(self.symbols)
             logger.info(f"Используется российский провайдер данных для {len(self.symbols)} инструментов")
         else:
@@ -270,15 +301,39 @@ class DataProvider:
         # Кэш данных
         self.market_data: Dict[str, pd.DataFrame] = {}
         self.realtime_data: Dict[str, Dict] = {}
+        self.enhanced_data: Dict[str, Dict] = {}  # Расширенные данные со стаканом заявок
         self.last_update = None
         
         logger.info(f"Провайдер данных инициализирован для {len(self.symbols)} инструментов")
+    
+    def _create_fallback_provider(self):
+        """Создание fallback провайдера"""
+        return YFinanceProvider(self.symbols)
+    
+    def _create_multi_provider(self):
+        """Создание множественного провайдера"""
+        providers = []
+        
+        # T-Bank провайдер (если доступен токен)
+        token = self.config.get('tbank_token')
+        if token:
+            sandbox = self.config.get('tbank_sandbox', True)
+            providers.append(EnhancedTBankProvider(token, sandbox, self.symbols))
+        
+        # YFinance провайдер как резервный
+        providers.append(YFinanceProvider(self.symbols))
+        
+        return MultiProviderDataProvider(providers, primary_provider="EnhancedTBankProvider")
     
     async def initialize(self):
         """
         Инициализация провайдера данных
         """
         logger.info("Инициализация провайдера данных")
+        
+        # Инициализация T-Bank провайдера, если используется
+        if hasattr(self.provider, 'initialize'):
+            await self.provider.initialize()
         
         # Загрузка исторических данных
         await self._load_historical_data()
@@ -319,6 +374,14 @@ class DataProvider:
         try:
             # Обновление данных в реальном времени
             self.realtime_data = await self.provider.get_realtime_data(self.symbols)
+            
+            # Получение расширенных данных (если поддерживается)
+            if hasattr(self.provider, 'get_enhanced_market_data'):
+                try:
+                    self.enhanced_data = await self.provider.get_enhanced_market_data(self.symbols)
+                    logger.debug(f"Получены расширенные данные для {len(self.enhanced_data)} инструментов")
+                except Exception as e:
+                    logger.warning(f"Ошибка получения расширенных данных: {e}")
             
             # Обновление последней записи в исторических данных
             for symbol in self.symbols:
@@ -440,6 +503,82 @@ class DataProvider:
             'symbols_count': len(self.symbols),
             'data_loaded': len(self.market_data),
             'last_update': self.last_update.isoformat() if self.last_update else None,
-            'realtime_data_count': len(self.realtime_data)
+            'realtime_data_count': len(self.realtime_data),
+            'enhanced_data_count': len(self.enhanced_data),
+            'supports_orderbook': hasattr(self.provider, 'get_orderbook'),
+            'supports_enhanced_data': hasattr(self.provider, 'get_enhanced_market_data')
+        }
+    
+    async def get_orderbook_data(self, symbol: str) -> Dict:
+        """
+        Получение данных стакана заявок
+        
+        Args:
+            symbol: Тикер инструмента
+            
+        Returns:
+            Словарь с данными стакана заявок
+        """
+        if hasattr(self.provider, 'get_orderbook'):
+            return await self.provider.get_orderbook(symbol)
+        else:
+            logger.warning(f"Провайдер {type(self.provider).__name__} не поддерживает стакан заявок")
+            return {}
+    
+    async def get_enhanced_features(self, symbol: str) -> pd.DataFrame:
+        """
+        Получение расширенных признаков для нейросети
+        
+        Args:
+            symbol: Тикер инструмента
+            
+        Returns:
+            DataFrame с расширенными признаками
+        """
+        try:
+            from ..neural_networks.enhanced_features import EnhancedFeatureExtractor
+            
+            # Получение базовых данных
+            market_data = self.market_data.get(symbol, pd.DataFrame())
+            if market_data.empty:
+                logger.warning(f"Нет рыночных данных для {symbol}")
+                return pd.DataFrame()
+            
+            # Получение расширенных данных
+            enhanced_data = self.enhanced_data.get(symbol, {})
+            orderbook_data = enhanced_data.get('orderbook', {})
+            instrument_info = enhanced_data.get('instrument', {})
+            
+            # Извлечение признаков
+            extractor = EnhancedFeatureExtractor()
+            features = extractor.extract_all_features(
+                market_data, 
+                orderbook_data, 
+                instrument_info
+            )
+            
+            logger.debug(f"Извлечено {len(features.columns)} признаков для {symbol}")
+            return features
+            
+        except Exception as e:
+            logger.error(f"Ошибка извлечения расширенных признаков для {symbol}: {e}")
+            return pd.DataFrame()
+    
+    def get_provider_info(self) -> Dict:
+        """
+        Получение информации о провайдере данных
+        
+        Returns:
+            Словарь с информацией о провайдере
+        """
+        return {
+            'provider_type': type(self.provider).__name__,
+            'symbols_count': len(self.symbols),
+            'market_data_count': len(self.market_data),
+            'realtime_data_count': len(self.realtime_data),
+            'enhanced_data_count': len(self.enhanced_data),
+            'supports_orderbook': hasattr(self.provider, 'get_orderbook'),
+            'supports_enhanced_data': hasattr(self.provider, 'get_enhanced_market_data'),
+            'last_update': self.last_update.isoformat() if self.last_update else None
         }
 

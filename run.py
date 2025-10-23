@@ -300,8 +300,14 @@ def main():
     
     parser.add_argument(
         '--config',
-        default=None,
-        help='Путь к конфигурационному файлу (если не указан, будет предложен выбор)'
+        default='config/tbank_sandbox.yaml',
+        help='Путь к конфигурационному файлу (по умолчанию: config/tbank_sandbox.yaml)'
+    )
+    
+    parser.add_argument(
+        '--auto-account',
+        action='store_true',
+        help='Автоматическое определение счета (по умолчанию для T-Bank)'
     )
     
     parser.add_argument(
@@ -352,6 +358,23 @@ def main():
     
     # Настройка логирования
     setup_logging(args.config)
+    
+    # Проверка T-Bank конфигурации
+    if "tbank" in args.config.lower():
+        print("🏦 T-Bank конфигурация обнаружена")
+        print("☁️ Облачная синхронизация включена")
+        print("🔄 Автоматическое определение счета включено")
+        print("=" * 50)
+        
+        # Проверка токена T-Bank
+        tbank_token = os.getenv('TINKOFF_TOKEN')
+        if not tbank_token:
+            print("❌ Переменная TINKOFF_TOKEN не установлена")
+            print("Установите токен: set TINKOFF_TOKEN=your_token_here")
+            print("Или создайте файл .env с содержимым: TINKOFF_TOKEN=your_token_here")
+            sys.exit(1)
+        else:
+            print(f"✅ T-Bank токен найден: {tbank_token[:10]}...")
     
     # Показать статус
     if args.status:

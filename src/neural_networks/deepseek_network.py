@@ -5,6 +5,7 @@ DeepSeek API интеграция для анализа рынка
 import asyncio
 import aiohttp
 import json
+import os
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from loguru import logger
@@ -51,8 +52,13 @@ class DeepSeekNetwork(BaseNeuralNetwork):
         Инициализация DeepSeek API
         """
         try:
+            # Если API ключ не указан в конфигурации, загружаем из переменной окружения
             if not self.api_key:
-                raise ValueError("API ключ DeepSeek не указан")
+                self.api_key = os.environ.get('DEEPSEEK_API_KEY')
+                if not self.api_key:
+                    logger.warning("API ключ DeepSeek не указан в конфигурации и переменной окружения")
+                    logger.info("Установите переменную окружения: set DEEPSEEK_API_KEY=your_key_here")
+                    return  # Пропускаем инициализацию без ошибки
             
             # Проверка подключения к API
             await self._test_api_connection()
