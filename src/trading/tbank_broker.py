@@ -60,6 +60,7 @@ class TBankBroker:
         
         # Кэш данных
         self.instruments_cache: Dict[str, str] = {}  # ticker -> figi
+        self.lot_sizes: Dict[str, int] = {}  # ticker -> lot_size
         self.positions: Dict[str, Dict] = {}
         self.orders: Dict[str, Dict] = {}
         self.client = None  # Сохраняем клиент для использования в веб-GUI
@@ -87,10 +88,12 @@ class TBankBroker:
                         # Для sandbox проверяем, что инструмент доступен для торговли
                         if share.api_trade_available_flag and share.trading_status.name == 'SECURITY_TRADING_STATUS_NORMAL_TRADING':
                             self.instruments_cache[share.ticker] = share.figi
+                            self.lot_sizes[share.ticker] = share.lot
                     else:
                         # Для production достаточно флага api_trade_available_flag
                         if share.api_trade_available_flag:
                             self.instruments_cache[share.ticker] = share.figi
+                            self.lot_sizes[share.ticker] = share.lot
                 
                 logger.info(f"Загружено {len(self.instruments_cache)} торгуемых инструментов")
                 
@@ -98,6 +101,17 @@ class TBankBroker:
                 if self.instruments_cache:
                     sample_tickers = list(self.instruments_cache.keys())[:10]
                     logger.debug(f"Примеры доступных тикеров: {', '.join(sample_tickers)}")
+                
+                # Проверяем конкретно GMKN
+                gmkn_found = False
+                for share in response.instruments:
+                    if share.ticker == 'GMKN':
+                        gmkn_found = True
+                        logger.info(f"GMKN найден: api_trade_available_flag={share.api_trade_available_flag}, trading_status={share.trading_status.name}")
+                        break
+                
+                if not gmkn_found:
+                    logger.warning("GMKN не найден в списке инструментов")
                 
                 # Для sandbox: создание/получение счета
                 if self.sandbox:
@@ -197,6 +211,94 @@ class TBankBroker:
         except Exception as e:
             logger.error(f"Ошибка обновления позиций: {e}")
     
+    async def place_order_lots(self, ticker: str, lots: int, direction: str, order_type: str = "market", price: float = None):
+        """
+        Размещение ордера в лотах (без конвертации)
+        
+        Args:
+            ticker: Тикер инструмента
+            lots: Количество лотов
+            direction: Направление (buy/sell)
+            order_type: Тип ордера (market/limit)
+            price: Цена для лимитного ордера
+            
+        Returns:
+            Информация о размещенном ордере
+        """
+        try:
+            figi = self.instruments_cache.get(ticker)
+            if not figi:
+                logger.warning(
+                    f"Инструмент {ticker} недоступен для торговли в {'sandbox' if self.sandbox else 'production'}. "
+                    f"Доступно {len(self.instruments_cache)} инструментов."
+                )
+                return None
+            
+            # Конвертация параметров
+            order_direction = (
+                OrderDirection.ORDER_DIRECTION_BUY 
+                if direction.lower() == "buy" 
+                else OrderDirection.ORDER_DIRECTION_SELL
+            )
+            
+            order_type_enum = (
+                OrderType.ORDER_TYPE_MARKET 
+                if order_type.lower() == "market" 
+                else OrderType.ORDER_TYPE_LIMIT
+            )
+            
+            logger.debug(f"Размещение ордера: {direction.upper()} {lots} лотов {ticker}")
+            
+            async with AsyncClient(self.token, target=self.target) as client:
+                # Размещение ордера
+                if self.sandbox:
+                    response = await client.sandbox.post_sandbox_order(
+                        figi=figi,
+                        quantity=lots,
+                        account_id=self.account_id,
+                        direction=order_direction,
+                        order_type=order_type_enum,
+                        price=self._quotation(price) if price else None
+                    )
+                else:
+                    response = await client.orders.post_order(
+                        figi=figi,
+                        quantity=lots,
+                        account_id=self.account_id,
+                        direction=order_direction,
+                        order_type=order_type_enum,
+                        price=self._quotation(price) if price else None
+                    )
+                
+                order_info = {
+                    'order_id': response.order_id,
+                    'ticker': ticker,
+                    'figi': figi,
+                    'direction': direction,
+                    'quantity': lots,
+                    'order_type': order_type,
+                    'price': price,
+                    'status': 'placed',
+                    'timestamp': datetime.now().isoformat(),
+                    'execution_price': self._money_value_to_float(response.executed_order_price) if hasattr(response, 'executed_order_price') else None,
+                    'total_commission': self._money_value_to_float(response.total_order_amount) if hasattr(response, 'total_order_amount') else None,
+                }
+                
+                logger.info(f"Ордер размещен: {direction.upper()} {lots} лотов {ticker} (order_id: {response.order_id})")
+                return order_info
+                
+        except Exception as e:
+            error_msg = str(e)
+            if "Need confirmation: sms" in error_msg or "90001" in error_msg:
+                logger.warning(f"T-Bank требует SMS-подтверждение для операции с {ticker}. Это нормально для sandbox-среды.")
+                logger.info("Для обхода SMS-подтверждения в sandbox можно:")
+                logger.info("1. Проверить настройки аккаунта в T-Bank")
+                logger.info("2. Использовать меньшие суммы для тестирования")
+                logger.info("3. Обратиться в поддержку T-Bank для настройки sandbox")
+            else:
+                logger.error(f"Ошибка размещения ордера для {ticker}: {e}")
+            return None
+
     async def place_order(
         self,
         ticker: str,
@@ -240,12 +342,18 @@ class TBankBroker:
                 else OrderType.ORDER_TYPE_LIMIT
             )
             
+            # Конвертируем акции в лоты
+            lots_quantity = self.shares_to_lots(ticker, quantity)
+            lot_size = self.get_lot_size(ticker)
+            
+            logger.debug(f"Конвертация {quantity} акций {ticker} в {lots_quantity} лотов (размер лота: {lot_size})")
+            
             async with AsyncClient(self.token, target=self.target) as client:
                 # Размещение ордера
                 if self.sandbox:
                     response = await client.sandbox.post_sandbox_order(
                         figi=figi,
-                        quantity=quantity,
+                        quantity=lots_quantity,
                         account_id=self.account_id,
                         direction=order_direction,
                         order_type=order_type_enum,
@@ -254,7 +362,7 @@ class TBankBroker:
                 else:
                     response = await client.orders.post_order(
                         figi=figi,
-                        quantity=quantity,
+                        quantity=lots_quantity,
                         account_id=self.account_id,
                         direction=order_direction,
                         order_type=order_type_enum,
@@ -285,7 +393,15 @@ class TBankBroker:
                 return order_info
                 
         except Exception as e:
-            logger.error(f"Ошибка размещения ордера для {ticker}: {e}")
+            error_msg = str(e)
+            if "Need confirmation: sms" in error_msg or "90001" in error_msg:
+                logger.warning(f"T-Bank требует SMS-подтверждение для операции с {ticker}. Это нормально для sandbox-среды.")
+                logger.info("Для обхода SMS-подтверждения в sandbox можно:")
+                logger.info("1. Проверить настройки аккаунта в T-Bank")
+                logger.info("2. Использовать меньшие суммы для тестирования")
+                logger.info("3. Обратиться в поддержку T-Bank для настройки sandbox")
+            else:
+                logger.error(f"Ошибка размещения ордера для {ticker}: {e}")
             return None
     
     async def cancel_order(self, order_id: str) -> bool:
@@ -607,6 +723,53 @@ class TBankBroker:
             True если тикер доступен для торговли
         """
         return ticker in self.instruments_cache
+    
+    def get_lot_size(self, ticker: str) -> int:
+        """
+        Получение размера лота для инструмента
+        
+        Args:
+            ticker: Тикер инструмента
+            
+        Returns:
+            Размер лота (количество акций в одном лоте)
+        """
+        return self.lot_sizes.get(ticker, 1)  # По умолчанию 1 акция в лоте
+    
+    def shares_to_lots(self, ticker: str, shares: int) -> int:
+        """
+        Конвертация количества акций в количество лотов
+        
+        Args:
+            ticker: Тикер инструмента
+            shares: Количество акций
+            
+        Returns:
+            Количество лотов
+        """
+        lot_size = self.get_lot_size(ticker)
+        if lot_size <= 0:
+            return shares  # Если размер лота неизвестен, считаем 1:1
+        
+        lots = shares / lot_size
+        if lots != int(lots):
+            logger.warning(f"Количество акций {shares} не кратно размеру лота {lot_size} для {ticker}")
+        
+        return int(lots)
+    
+    def lots_to_shares(self, ticker: str, lots: int) -> int:
+        """
+        Конвертация количества лотов в количество акций
+        
+        Args:
+            ticker: Тикер инструмента
+            lots: Количество лотов
+            
+        Returns:
+            Количество акций
+        """
+        lot_size = self.get_lot_size(ticker)
+        return lots * lot_size
     
     def get_status(self) -> Dict:
         """

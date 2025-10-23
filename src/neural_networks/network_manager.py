@@ -155,12 +155,13 @@ class NetworkManager:
             logger.error(f"Ошибка обучения модели {model.name}: {e}")
             raise
     
-    async def analyze(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def analyze(self, data: Dict[str, Any], portfolio_manager=None) -> Dict[str, Any]:
         """
         Анализ данных всеми моделями для всех символов
         
         Args:
             data: Входные данные
+            portfolio_manager: Менеджер портфеля для извлечения портфельных признаков
             
         Returns:
             Результаты анализа от всех моделей по каждому символу
@@ -178,7 +179,7 @@ class NetworkManager:
                     continue
                 
                 # Создание задачи анализа для каждой модели
-                task = asyncio.create_task(self._analyze_single_model(model, data))
+                task = asyncio.create_task(self._analyze_single_model(model, data, portfolio_manager))
                 analysis_tasks.append((model_name, task))
             
             # Параллельный анализ всеми моделями
@@ -232,13 +233,14 @@ class NetworkManager:
                 'models_used': []
             }
     
-    async def _analyze_single_model(self, model: BaseNeuralNetwork, data: Dict[str, Any]):
+    async def _analyze_single_model(self, model: BaseNeuralNetwork, data: Dict[str, Any], portfolio_manager=None):
         """
         Анализ одной модели для всех символов
         
         Args:
             model: Модель для анализа
             data: Входные данные
+            portfolio_manager: Менеджер портфеля для извлечения портфельных признаков
             
         Returns:
             Словарь с результатами анализа по каждому символу
@@ -252,7 +254,8 @@ class NetworkManager:
                 for symbol, symbol_data in data['historical'].items():
                     if not symbol_data.empty:
                         try:
-                            prediction = await model.predict(symbol_data)
+                            # Передача портфельных данных в модель
+                            prediction = await model.predict(symbol_data, portfolio_manager=portfolio_manager, symbol=symbol)
                             prediction['symbol'] = symbol  # Добавляем информацию о символе
                             predictions_by_symbol[symbol] = prediction
                             logger.debug(f"Модель {model.name} проанализировала {symbol}: {prediction.get('signal', 'N/A')}")
@@ -362,8 +365,22 @@ class NetworkManager:
             # Определение итогового сигнала
             final_signal = max(signal_votes, key=signal_votes.get)
             
+            # Определение тренда на основе сигналов
+            trend = 'sideways'  # По умолчанию
+            if final_signal == 'BUY':
+                trend = 'bullish'
+            elif final_signal == 'SELL':
+                trend = 'bearish'
+            
+            # Попытка получить тренд от DeepSeek модели
+            for model_name, prediction in predictions.items():
+                if 'trend' in prediction and prediction['trend'] != 'unknown':
+                    trend = prediction['trend']
+                    break
+            
             return {
                 'signal': final_signal,
+                'trend': trend,
                 'next_price': weighted_price / total_weight if weighted_price > 0 else None,
                 'confidence': weighted_confidence / total_weight,
                 'method': 'weighted_average',
@@ -405,8 +422,22 @@ class NetworkManager:
         final_signal = max(signal_votes, key=signal_votes.get)
         avg_confidence = np.mean(confidences) if confidences else 0.0
         
+        # Определение тренда на основе сигналов
+        trend = 'sideways'  # По умолчанию
+        if final_signal == 'BUY':
+            trend = 'bullish'
+        elif final_signal == 'SELL':
+            trend = 'bearish'
+        
+        # Попытка получить тренд от DeepSeek модели
+        for model_name, prediction in predictions.items():
+            if 'trend' in prediction and prediction['trend'] != 'unknown':
+                trend = prediction['trend']
+                break
+        
         return {
             'signal': final_signal,
+            'trend': trend,
             'confidence': avg_confidence,
             'method': 'majority_vote',
             'signal_distribution': signal_votes
@@ -448,8 +479,22 @@ class NetworkManager:
         final_signal = max(signal_avg_confidence, key=signal_avg_confidence.get)
         final_confidence = signal_avg_confidence[final_signal]
         
+        # Определение тренда на основе сигналов
+        trend = 'sideways'  # По умолчанию
+        if final_signal == 'BUY':
+            trend = 'bullish'
+        elif final_signal == 'SELL':
+            trend = 'bearish'
+        
+        # Попытка получить тренд от DeepSeek модели
+        for model_name, prediction in predictions.items():
+            if 'trend' in prediction and prediction['trend'] != 'unknown':
+                trend = prediction['trend']
+                break
+        
         return {
             'signal': final_signal,
+            'trend': trend,
             'confidence': final_confidence,
             'method': 'confidence_weighted',
             'signal_confidence': signal_avg_confidence

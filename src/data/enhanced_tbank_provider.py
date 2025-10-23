@@ -77,6 +77,7 @@ class EnhancedTBankProvider(BaseDataProvider):
         self.instruments_cache: Dict[str, Dict] = {}  # ticker -> {figi, name, currency}
         self.orderbook_cache: Dict[str, Dict] = {}   # ticker -> orderbook data
         self.last_prices_cache: Dict[str, float] = {} # ticker -> last price
+        self._initialized = False
         
         # Интервалы для свечей
         self.candle_intervals = {

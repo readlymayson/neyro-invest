@@ -39,6 +39,12 @@ neural_networks:
       
   analysis_interval: 1800  # 30 минут - разумно для акций
   ensemble_method: weighted_average  # weighted_average, majority_vote, confidence_weighted
+  
+  # Настройки портфельных признаков
+  portfolio_features:
+    lookback_days: 30
+    risk_free_rate: 0.05
+    var_confidence: 0.95
 
 # Настройки торговли
 trading:

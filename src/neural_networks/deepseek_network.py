@@ -138,13 +138,15 @@ class DeepSeekNetwork(BaseNeuralNetwork):
             logger.error(f"Ошибка анализа DeepSeek моделью {self.name}: {e}")
             raise
     
-    def _prepare_data_for_analysis(self, data: pd.DataFrame, target: str) -> Dict[str, Any]:
+    def _prepare_data_for_analysis(self, data: pd.DataFrame, target: str, portfolio_manager=None, symbol: str = None) -> Dict[str, Any]:
         """
         Подготовка данных для анализа DeepSeek
         
         Args:
             data: Исходные данные
             target: Целевая переменная
+            portfolio_manager: Менеджер портфеля для извлечения портфельных признаков
+            symbol: Символ для анализа портфельных признаков
             
         Returns:
             Подготовленные данные для анализа
@@ -173,6 +175,35 @@ class DeepSeekNetwork(BaseNeuralNetwork):
                 'technical_indicators': self._extract_technical_indicators(recent_data),
                 'time_series': recent_data[target].tail(10).tolist()
             }
+            
+            # Добавление портфельных данных
+            if portfolio_manager:
+                try:
+                    from .portfolio_features import PortfolioFeatureExtractor
+                    portfolio_extractor = PortfolioFeatureExtractor(self.config.get('portfolio_features', {}))
+                    portfolio_features = portfolio_extractor.extract_portfolio_features(portfolio_manager, symbol)
+                    
+                    stats['portfolio_stats'] = {
+                        'total_value': portfolio_features.total_value,
+                        'total_pnl': portfolio_features.total_pnl,
+                        'total_pnl_percent': portfolio_features.total_pnl_percent,
+                        'position_count': portfolio_features.position_count,
+                        'winning_positions': portfolio_features.winning_positions,
+                        'losing_positions': portfolio_features.losing_positions,
+                        'sharpe_ratio': portfolio_features.sharpe_ratio,
+                        'max_drawdown': portfolio_features.max_drawdown,
+                        'volatility': portfolio_features.volatility
+                    }
+                    
+                    # Добавление признаков по символу
+                    if symbol and symbol in portfolio_features.symbol_features:
+                        symbol_features = portfolio_features.symbol_features[symbol]
+                        stats['symbol_portfolio_stats'] = symbol_features
+                        
+                except Exception as e:
+                    logger.warning(f"Ошибка добавления портфельных данных в DeepSeek: {e}")
+                    stats['portfolio_stats'] = {}
+                    stats['symbol_portfolio_stats'] = {}
             
             return stats
             
@@ -459,12 +490,14 @@ class DeepSeekNetwork(BaseNeuralNetwork):
                 'analysis_quality': 0.0
             }
     
-    async def predict(self, data: pd.DataFrame) -> Dict[str, Any]:
+    async def predict(self, data: pd.DataFrame, portfolio_manager=None, symbol: str = None) -> Dict[str, Any]:
         """
         Предсказание с помощью DeepSeek
         
         Args:
             data: Входные данные
+            portfolio_manager: Менеджер портфеля для извлечения портфельных признаков
+            symbol: Символ для анализа портфельных признаков
             
         Returns:
             Словарь с предсказаниями
@@ -473,8 +506,8 @@ class DeepSeekNetwork(BaseNeuralNetwork):
             if not self.is_trained:
                 raise ValueError(f"Модель {self.name} не проанализирована")
             
-            # Подготовка данных для предсказания
-            prediction_data = self._prepare_data_for_analysis(data, 'Close')
+            # Подготовка данных для предсказания с портфельными признаками
+            prediction_data = self._prepare_data_for_analysis(data, 'Close', portfolio_manager, symbol)
             
             # Создание промпта для предсказания
             prompt = self._create_prediction_prompt(prediction_data)

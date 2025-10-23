@@ -56,6 +56,10 @@ class PortfolioMetrics:
     total_pnl_percent: float
     daily_pnl: float
     daily_pnl_percent: float
+    realized_pnl: float  # Реализованная прибыль
+    realized_pnl_percent: float  # Реализованная прибыль в процентах
+    unrealized_pnl: float  # Нереализованная прибыль
+    unrealized_pnl_percent: float  # Нереализованная прибыль в процентах
     sharpe_ratio: float
     max_drawdown: float
     volatility: float
@@ -178,7 +182,10 @@ class PortfolioManager:
                 return None
             
             # Расчет средней цены покупки
-            average_price = (total_cost + total_commission) / total_quantity if total_quantity > 0 else 0
+            if total_quantity != 0:
+                average_price = (total_cost + total_commission) / abs(total_quantity)
+            else:
+                average_price = 0
             
             # Получение текущей цены (здесь нужна интеграция с провайдером данных)
             current_price = await self._get_current_price(symbol)
@@ -247,6 +254,145 @@ class PortfolioManager:
         self.data_provider = data_provider
         logger.debug("Провайдер данных установлен в менеджере портфеля")
     
+    def set_tbank_broker(self, tbank_broker):
+        """
+        Установка T-Bank брокера для синхронизации
+        
+        Args:
+            tbank_broker: T-Bank брокер
+        """
+        self.tbank_broker = tbank_broker
+        logger.debug("T-Bank брокер установлен в менеджере портфеля")
+    
+    async def sync_with_tbank(self):
+        """
+        Синхронизация портфеля с T-Bank API
+        Полностью заменяем локальные данные данными из брокера
+        """
+        try:
+            if not self.tbank_broker:
+                logger.warning("T-Bank брокер не установлен, синхронизация невозможна")
+                return False
+            
+            logger.debug("Синхронизация портфеля с T-Bank API")
+            
+            # Обновляем позиции из T-Bank
+            await self.tbank_broker.update_positions()
+            tbank_positions = self.tbank_broker.positions
+            
+            # Получаем баланс из T-Bank
+            tbank_balances = await self.tbank_broker.get_account_balance()
+            tbank_cash = tbank_balances.get('rub', 0.0)
+            
+            # Полностью заменяем локальные данные данными из T-Bank
+            self.cash_balance = tbank_cash
+            
+            # Сначала синхронизируем транзакции из T-Bank
+            await self._sync_tbank_transactions()
+            
+            # Очищаем локальные позиции и заполняем данными из T-Bank
+            self.positions = {}
+            for ticker, pos_data in tbank_positions.items():
+                if pos_data['quantity'] != 0:  # Показываем все позиции (включая короткие)
+                    # Получаем текущую цену
+                    current_price = await self._get_current_price(ticker)
+                    
+                    # Расчет средней цены из транзакций
+                    average_price = await self._calculate_average_price(ticker)
+                    if average_price <= 0:
+                        # Если не удалось рассчитать среднюю цену, используем текущую цену
+                        average_price = current_price
+                        logger.warning(f"Средняя цена для {ticker} не рассчитана, используем текущую цену: {current_price}")
+                    else:
+                        logger.info(f"Средняя цена для {ticker}: {average_price:.2f} ₽ (из транзакций)")
+                    
+                    position = Position(
+                        symbol=ticker,
+                        quantity=pos_data['quantity'],
+                        average_price=average_price,
+                        current_price=current_price,
+                        market_value=abs(pos_data['quantity']) * current_price,  # Абсолютное значение для стоимости
+                        unrealized_pnl=(pos_data['quantity'] * current_price) - (pos_data['quantity'] * average_price),
+                        unrealized_pnl_percent=((current_price - average_price) / average_price * 100) if average_price > 0 else 0,
+                        last_updated=datetime.now()
+                    )
+                    self.positions[ticker] = position
+            
+            # Пересчитываем метрики портфеля
+            await self._calculate_portfolio_metrics()
+            
+            logger.info(f"Синхронизация с T-Bank завершена: {len(self.positions)} позиций, баланс {self.cash_balance:,.2f} ₽")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Ошибка синхронизации с T-Bank: {e}")
+            return False
+    
+    async def _sync_tbank_transactions(self):
+        """
+        Синхронизация транзакций из T-Bank API
+        """
+        try:
+            if not self.tbank_broker:
+                logger.warning("T-Bank брокер не установлен, синхронизация транзакций невозможна")
+                return False
+            
+            logger.debug("Синхронизация транзакций с T-Bank API")
+            
+            # Получаем операции за последние 30 дней
+            from_date = datetime.now() - timedelta(days=30)
+            tbank_operations = await self.tbank_broker.get_operations(from_date=from_date)
+            
+            logger.info(f"Получено {len(tbank_operations) if tbank_operations else 0} операций из T-Bank")
+            if tbank_operations:
+                logger.info(f"Примеры операций: {tbank_operations[:3]}")
+            
+            if not tbank_operations:
+                logger.info("Нет операций для синхронизации")
+                return True
+            
+            # Очищаем локальные транзакции (они заменяются данными из T-Bank)
+            self.transactions.clear()
+            
+            # Конвертируем операции T-Bank в локальные транзакции
+            for op in tbank_operations:
+                # Определяем тип транзакции по числовому коду
+                if op['type'] == '15':  # OPERATION_TYPE_BUY
+                    transaction_type = TransactionType.BUY
+                elif op['type'] == '22':  # OPERATION_TYPE_SELL
+                    transaction_type = TransactionType.SELL
+                else:
+                    continue  # Пропускаем другие типы операций
+                
+                # Конвертируем FIGI в тикер
+                figi = op.get('figi', '')
+                ticker = self._figi_to_ticker(figi)
+                
+                if not ticker:
+                    logger.debug(f"Не удалось найти тикер для FIGI: {figi}")
+                    continue
+                
+                # Создаем транзакцию
+                transaction = Transaction(
+                    id=op['id'],
+                    symbol=ticker,  # Используем тикер вместо FIGI
+                    type=transaction_type,
+                    quantity=abs(op.get('quantity', 0)),
+                    price=op.get('price', 0.0),
+                    commission=0.0,  # T-Bank операции не содержат комиссию отдельно
+                    timestamp=datetime.fromisoformat(op['date']) if op.get('date') else datetime.now(),
+                    notes=f"T-Bank операция: {op['type']}"
+                )
+                
+                self.transactions.append(transaction)
+            
+            logger.info(f"Синхронизировано {len(self.transactions)} транзакций из T-Bank")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Ошибка синхронизации транзакций с T-Bank: {e}")
+            return False
+    
     async def add_transaction(self, transaction_data: Dict[str, Any]):
         """
         Добавление транзакции в портфель
@@ -255,7 +401,7 @@ class PortfolioManager:
             transaction_data: Данные транзакции
         """
         try:
-            # Создание объекта транзакции
+            # Создание объекта транзакции для логирования
             transaction = Transaction(
                 id=transaction_data.get('id', f"txn_{datetime.now().timestamp()}"),
                 symbol=transaction_data['symbol'],
@@ -267,16 +413,23 @@ class PortfolioManager:
                 notes=transaction_data.get('notes')
             )
             
-            # Добавление транзакции
-            self.transactions.append(transaction)
-            
-            # Обновление баланса денежных средств
-            await self._update_cash_balance(transaction)
-            
-            # Пересчет позиций
-            await self._calculate_positions()
-            
-            logger.info(f"Добавлена транзакция {transaction.id}: {transaction.type.value} {transaction.quantity} {transaction.symbol}")
+            # Если работаем с T-Bank брокером, не добавляем локальные транзакции
+            # Все данные берутся из T-Bank API
+            if hasattr(self, 'tbank_broker') and self.tbank_broker:
+                logger.info(f"Транзакция {transaction.id}: {transaction.type.value} {transaction.quantity} {transaction.symbol} - данные будут синхронизированы с T-Bank")
+                # Синхронизируем с T-Bank после транзакции
+                await self.sync_with_tbank()
+            else:
+                # Для локального режима добавляем транзакцию
+                self.transactions.append(transaction)
+                
+                # Обновление баланса денежных средств
+                await self._update_cash_balance(transaction)
+                
+                # Пересчет позиций
+                await self._calculate_positions()
+                
+                logger.info(f"Добавлена транзакция {transaction.id}: {transaction.type.value} {transaction.quantity} {transaction.symbol}")
             
         except Exception as e:
             logger.error(f"Ошибка добавления транзакции: {e}")
@@ -310,8 +463,12 @@ class PortfolioManager:
         try:
             logger.debug("Обновление портфеля")
             
-            # Обновление текущих цен позиций
-            await self._update_position_prices()
+            # Синхронизация с T-Bank (если подключен)
+            if hasattr(self, 'tbank_broker') and self.tbank_broker:
+                await self.sync_with_tbank()
+            else:
+                # Обновление текущих цен позиций (для локального портфеля)
+                await self._update_position_prices()
             
             # Расчет метрик портфеля
             await self._calculate_portfolio_metrics()
@@ -351,8 +508,16 @@ class PortfolioManager:
             invested_value = sum(position.market_value for position in self.positions.values())
             total_value = self.cash_balance + invested_value
             
-            # Расчет общей прибыли/убытка
-            total_pnl = sum(position.unrealized_pnl for position in self.positions.values())
+            # Расчет нереализованной прибыли/убытка
+            unrealized_pnl = sum(position.unrealized_pnl for position in self.positions.values())
+            unrealized_pnl_percent = (unrealized_pnl / self.initial_capital) * 100 if self.initial_capital > 0 else 0
+            
+            # Расчет реализованной прибыли/убытка из транзакций
+            realized_pnl = await self._calculate_realized_pnl()
+            realized_pnl_percent = (realized_pnl / self.initial_capital) * 100 if self.initial_capital > 0 else 0
+            
+            # Общая прибыль = реализованная + нереализованная
+            total_pnl = realized_pnl + unrealized_pnl
             total_pnl_percent = (total_pnl / self.initial_capital) * 100 if self.initial_capital > 0 else 0
             
             # Расчет дневной прибыли/убытка
@@ -376,6 +541,10 @@ class PortfolioManager:
                 total_pnl_percent=total_pnl_percent,
                 daily_pnl=daily_pnl,
                 daily_pnl_percent=daily_pnl_percent,
+                realized_pnl=realized_pnl,
+                realized_pnl_percent=realized_pnl_percent,
+                unrealized_pnl=unrealized_pnl,
+                unrealized_pnl_percent=unrealized_pnl_percent,
                 sharpe_ratio=sharpe_ratio,
                 max_drawdown=max_drawdown,
                 volatility=volatility,
@@ -384,6 +553,163 @@ class PortfolioManager:
             
         except Exception as e:
             logger.error(f"Ошибка расчета метрик портфеля: {e}")
+    
+    def _figi_to_ticker(self, figi: str) -> str:
+        """
+        Конвертация FIGI в тикер
+        
+        Args:
+            figi: FIGI инструмента
+            
+        Returns:
+            Тикер инструмента или пустая строка
+        """
+        try:
+            if not self.tbank_broker:
+                return ""
+            
+            # Ищем тикер по FIGI в кэше инструментов
+            for ticker, cached_figi in self.tbank_broker.instruments_cache.items():
+                if cached_figi == figi:
+                    return ticker
+            
+            logger.debug(f"Тикер не найден для FIGI: {figi}")
+            return ""
+            
+        except Exception as e:
+            logger.error(f"Ошибка конвертации FIGI в тикер: {e}")
+            return ""
+    
+    async def _calculate_average_price(self, symbol: str) -> float:
+        """
+        Расчет средней цены покупки из транзакций
+        
+        Args:
+            symbol: Символ инструмента
+            
+        Returns:
+            Средняя цена покупки
+        """
+        try:
+            # Фильтруем транзакции по символу
+            symbol_transactions = [t for t in self.transactions if t.symbol == symbol]
+            
+            logger.info(f"🔍 Анализ транзакций для {symbol}: {len(symbol_transactions)} из {len(self.transactions)} общих")
+            if symbol_transactions:
+                logger.info(f"📊 Все транзакции для {symbol}:")
+                for i, t in enumerate(symbol_transactions):
+                    logger.info(f"  {i+1}. {t.type.value}: {t.quantity} шт по {t.price:.2f} ₽")
+            
+            if not symbol_transactions:
+                logger.debug(f"Нет транзакций для {symbol}")
+                return 0.0
+            
+            # Рассчитываем средневзвешенную цену покупки
+            # Используем FIFO (First-In, First-Out) подход
+            buy_queue = []  # Очередь покупок
+            total_cost = 0.0
+            total_quantity = 0.0
+            
+            for transaction in symbol_transactions:
+                if transaction.type == TransactionType.BUY:
+                    # Добавляем покупку в очередь
+                    buy_queue.append({
+                        'quantity': transaction.quantity,
+                        'price': transaction.price
+                    })
+                    total_cost += transaction.quantity * transaction.price
+                    total_quantity += transaction.quantity
+                elif transaction.type == TransactionType.SELL:
+                    # Продаем акции по FIFO
+                    sell_quantity = transaction.quantity
+                    
+                    while sell_quantity > 0 and buy_queue:
+                        buy = buy_queue[0]
+                        
+                        if buy['quantity'] <= sell_quantity:
+                            # Продаем всю покупку
+                            total_cost -= buy['quantity'] * buy['price']
+                            total_quantity -= buy['quantity']
+                            sell_quantity -= buy['quantity']
+                            buy_queue.pop(0)
+                        else:
+                            # Продаем часть покупки
+                            total_cost -= sell_quantity * buy['price']
+                            total_quantity -= sell_quantity
+                            buy['quantity'] -= sell_quantity
+                            sell_quantity = 0
+            
+            if total_quantity <= 0:
+                logger.debug(f"Нет активных позиций для {symbol}")
+                return 0.0
+            
+            average_price = total_cost / total_quantity
+            logger.info(f"📊 Расчет для {symbol}: total_cost={total_cost:.2f}, total_quantity={total_quantity:.0f}, avg_price={average_price:.2f}")
+            return average_price
+            
+        except Exception as e:
+            logger.error(f"Ошибка расчета средней цены для {symbol}: {e}")
+            return 0.0
+    
+    async def _calculate_realized_pnl(self) -> float:
+        """
+        Расчет реализованной прибыли/убытка из транзакций
+        """
+        try:
+            realized_pnl = 0.0
+            
+            # Группируем транзакции по символам
+            symbol_transactions = {}
+            for transaction in self.transactions:
+                if transaction.symbol not in symbol_transactions:
+                    symbol_transactions[transaction.symbol] = []
+                symbol_transactions[transaction.symbol].append(transaction)
+            
+            # Рассчитываем реализованную прибыль для каждого символа
+            for symbol, transactions in symbol_transactions.items():
+                # Сортируем транзакции по времени
+                transactions.sort(key=lambda t: t.timestamp)
+                
+                # FIFO расчет реализованной прибыли
+                buy_queue = []  # Очередь покупок
+                
+                for transaction in transactions:
+                    if transaction.type == TransactionType.BUY:
+                        # Добавляем покупку в очередь
+                        buy_queue.append({
+                            'quantity': transaction.quantity,
+                            'price': transaction.price,
+                            'timestamp': transaction.timestamp
+                        })
+                    elif transaction.type == TransactionType.SELL:
+                        # Продаем акции по FIFO
+                        sell_quantity = transaction.quantity
+                        sell_price = transaction.price
+                        
+                        while sell_quantity > 0 and buy_queue:
+                            buy = buy_queue[0]
+                            
+                            if buy['quantity'] <= sell_quantity:
+                                # Продаем всю покупку
+                                pnl = (sell_price - buy['price']) * buy['quantity']
+                                realized_pnl += pnl
+                                
+                                sell_quantity -= buy['quantity']
+                                buy_queue.pop(0)
+                            else:
+                                # Продаем часть покупки
+                                pnl = (sell_price - buy['price']) * sell_quantity
+                                realized_pnl += pnl
+                                
+                                buy['quantity'] -= sell_quantity
+                                sell_quantity = 0
+            
+            logger.debug(f"Реализованная прибыль: {realized_pnl:.2f} ₽")
+            return realized_pnl
+            
+        except Exception as e:
+            logger.error(f"Ошибка расчета реализованной прибыли: {e}")
+            return 0.0
     
     async def _calculate_sharpe_ratio(self) -> float:
         """

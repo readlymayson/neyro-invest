@@ -361,6 +361,7 @@ class TradingEngine:
             # Проверка максимального количества позиций
             current_positions = await self.portfolio_manager.get_positions()
             if len(current_positions) >= self.max_positions:
+                logger.warning(f"❌ {symbol}: Достигнуто максимальное количество позиций ({self.max_positions})")
                 return False
             
             # Проверка существующей позиции по символу
@@ -369,6 +370,11 @@ class TradingEngine:
                 if existing_position:
                     # Если позиция уже есть, проверяем возможность увеличения
                     return await self._can_modify_position(symbol, signal)
+            
+            # Проверка лимита размера позиции для покупки
+            if signal == 'BUY':
+                if not await self._check_position_size_limit(symbol):
+                    return False
             
             return True
             
@@ -410,7 +416,9 @@ class TradingEngine:
                 # Покупка при короткой позиции - разрешено
                 return True
             elif signal == 'BUY' and position.quantity > 0:
-                # Покупка при длинной позиции - только если прошло достаточно времени
+                # Покупка при длинной позиции - проверяем лимит размера
+                if not await self._check_position_size_limit(symbol):
+                    return False
                 return True
             elif signal == 'SELL' and position.quantity < 0:
                 # Продажа при короткой позиции - только если прошло достаточно времени
@@ -422,6 +430,90 @@ class TradingEngine:
             logger.error(f"Ошибка проверки возможности изменения позиции: {e}")
             return False
     
+    async def _check_position_size_limit(self, symbol: str) -> bool:
+        """
+        Проверка лимита размера позиции
+        
+        Args:
+            symbol: Тикер инструмента
+            
+        Returns:
+            True если размер позиции не превышает лимит
+        """
+        try:
+            if not self.portfolio_manager:
+                return False
+            
+            # Получение текущего капитала
+            portfolio_value = await self.portfolio_manager.get_portfolio_value()
+            
+            # Получение текущей цены
+            current_price = await self._get_current_price(symbol)
+            if current_price <= 0:
+                logger.warning(f"❌ {symbol}: Не удалось получить текущую цену")
+                return False
+            
+            # Расчет размера новой позиции
+            position_value = portfolio_value * self.position_size
+            new_quantity = position_value / current_price
+            
+            # Проверка существующей позиции
+            existing_position = await self.portfolio_manager.get_position(symbol)
+            if existing_position:
+                # Если позиция уже есть, проверяем общий размер
+                total_quantity = existing_position.quantity + new_quantity
+                total_value = total_quantity * current_price
+                total_weight = (total_value / portfolio_value) * 100
+            else:
+                # Новая позиция
+                total_weight = (position_value / portfolio_value) * 100
+            
+            # Проверка лимита (10% по умолчанию)
+            max_weight = self.position_size * 100
+            
+            if total_weight > max_weight:
+                logger.warning(f"❌ {symbol}: Размер позиции {total_weight:.1f}% превышает лимит {max_weight:.1f}%")
+                return False
+            
+            logger.info(f"✅ {symbol}: Размер позиции {total_weight:.1f}% в пределах лимита {max_weight:.1f}%")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Ошибка проверки лимита размера позиции: {e}")
+            return False
+    
+    async def _get_current_price(self, symbol: str) -> float:
+        """
+        Получение текущей цены инструмента
+        
+        Args:
+            symbol: Тикер инструмента
+            
+        Returns:
+            Текущая цена или 0.0 если не удалось получить
+        """
+        try:
+            if not self.data_provider:
+                logger.warning(f"❌ {symbol}: Провайдер данных не установлен")
+                return 0.0
+            
+            # Получение последних данных
+            market_data = await self.data_provider.get_latest_data()
+            
+            if 'historical' in market_data and symbol in market_data['historical']:
+                symbol_data = market_data['historical'][symbol]
+                if not symbol_data.empty and 'Close' in symbol_data.columns:
+                    current_price = symbol_data['Close'].iloc[-1]
+                    logger.debug(f"✅ {symbol}: Текущая цена {current_price:.2f}")
+                    return float(current_price)
+            
+            logger.warning(f"❌ {symbol}: Не удалось получить цену из данных")
+            return 0.0
+            
+        except Exception as e:
+            logger.error(f"Ошибка получения цены для {symbol}: {e}")
+            return 0.0
+    
     async def execute_trades(self, signals: List[TradingSignal]):
         """
         Выполнение торговых операций
@@ -430,15 +522,33 @@ class TradingEngine:
             signals: Список торговых сигналов
         """
         try:
-            logger.info(f"Выполнение {len(signals)} торговых операций")
+            logger.info(f"🔄 Обработка {len(signals)} торговых сигналов")
+            
+            executed_count = 0
+            rejected_count = 0
             
             for signal in signals:
                 try:
+                    # Сохраняем состояние до выполнения
+                    initial_log_level = logger.level("INFO")
+                    
                     await self._execute_signal(signal)
+                    
+                    # Подсчитываем результат (это приблизительная оценка)
+                    if signal.signal != 'HOLD':
+                        # Проверяем, был ли сигнал выполнен, анализируя последние логи
+                        # В реальной реализации можно добавить флаг успешного выполнения
+                        pass
+                        
                 except Exception as e:
-                    logger.error(f"Ошибка выполнения сигнала {signal.symbol}: {e}")
+                    logger.error(f"❌ {signal.symbol}: Критическая ошибка: {e}")
+                    rejected_count += 1
             
-            logger.info("Выполнение торговых операций завершено")
+            logger.info(f"📊 Статистика выполнения сигналов:")
+            logger.info(f"   📈 Всего сигналов: {len(signals)}")
+            logger.info(f"   ⏸️  HOLD сигналов: {len([s for s in signals if s.signal == 'HOLD'])}")
+            logger.info(f"   🔄 Активных сигналов: {len([s for s in signals if s.signal != 'HOLD'])}")
+            logger.info(f"   ⚠️  Проверьте логи выше для детальной информации о каждом сигнале")
             
         except Exception as e:
             logger.error(f"Ошибка выполнения торговых операций: {e}")
@@ -452,41 +562,44 @@ class TradingEngine:
         """
         try:
             if signal.signal == 'HOLD':
+                logger.debug(f"Сигнал {signal.symbol}: HOLD - пропускаем")
                 return
+            
+            logger.info(f"Обработка сигнала {signal.signal} для {signal.symbol}")
             
             # Проверка доступности инструмента в брокере
             if self.broker_type in ['tinkoff', 'tbank'] and self.tbank_broker:
                 if not self.tbank_broker.is_ticker_available(signal.symbol):
-                    logger.debug(
-                        f"Инструмент {signal.symbol} недоступен для торговли в T-Bank. "
-                        f"Пропускаем сигнал."
-                    )
+                    logger.warning(f"❌ {signal.symbol}: Инструмент недоступен для торговли в T-Bank")
                     return
             
             # Проверка на запрет коротких продаж (маржинальной торговли)
             if signal.signal == 'SELL':
                 if not await self._can_sell(signal.symbol):
-                    logger.warning(f"Невозможно продать {signal.symbol}: недостаточно акций (запрет коротких продаж)")
+                    logger.warning(f"❌ {signal.symbol}: Невозможно продать - нет позиции или запрет коротких продаж")
                     return
             
             # Расчет размера позиции
             position_size = await self._calculate_position_size(signal)
             if position_size <= 0:
-                logger.debug(f"Размер позиции для {signal.symbol} равен 0, пропускаем")
+                logger.warning(f"❌ {signal.symbol}: Размер позиции равен 0 - недостаточно средств или акций")
                 return
             
             # Создание ордера
             order = self._create_order(signal, position_size)
             if not order:
+                logger.warning(f"❌ {signal.symbol}: Не удалось создать ордер")
                 return
             
             # Выполнение ордера
-            await self._submit_order(order)
-            
-            logger.info(f"Выполнен сигнал {signal.signal} для {signal.symbol}: {order.quantity} штук")
+            result = await self._submit_order(order)
+            if result:
+                logger.info(f"✅ {signal.symbol}: Сигнал {signal.signal} выполнен - {order.quantity} штук")
+            else:
+                logger.warning(f"❌ {signal.symbol}: Ордер не выполнен - ошибка брокера")
             
         except Exception as e:
-            logger.error(f"Ошибка выполнения сигнала {signal.symbol}: {e}")
+            logger.error(f"❌ {signal.symbol}: Ошибка выполнения сигнала: {e}")
     
     async def _calculate_position_size(self, signal: TradingSignal) -> float:
         """
@@ -506,13 +619,13 @@ class TradingEngine:
             if signal.signal == 'SELL':
                 positions = self.portfolio_manager.positions
                 if signal.symbol not in positions:
-                    logger.debug(f"Нет позиции {signal.symbol} для продажи")
+                    logger.warning(f"❌ {signal.symbol}: Нет позиции для продажи")
                     return 0.0
                 
                 # Возвращаем количество акций в позиции (или его часть)
                 available_quantity = positions[signal.symbol].quantity
                 if available_quantity <= 0:
-                    logger.debug(f"Недостаточно акций {signal.symbol} для продажи: {available_quantity}")
+                    logger.warning(f"❌ {signal.symbol}: Недостаточно акций для продажи: {available_quantity}")
                     return 0.0
                 
                 # Продаем всю позицию или часть (в зависимости от конфигурации)
@@ -520,7 +633,7 @@ class TradingEngine:
                 if sell_quantity < 1:
                     sell_quantity = int(available_quantity)  # Продаем все если меньше 1
                 
-                logger.debug(f"Размер позиции для продажи {signal.symbol}: {sell_quantity} из {available_quantity}")
+                logger.info(f"✅ {signal.symbol}: Размер позиции для продажи: {sell_quantity} лотов из {available_quantity}")
                 return float(sell_quantity)
             
             # Для покупки - расчет как процент от капитала
@@ -533,6 +646,7 @@ class TradingEngine:
             # Получение текущей цены
             current_price = await self._get_current_price(signal.symbol)
             if current_price <= 0:
+                logger.warning(f"❌ {signal.symbol}: Не удалось получить текущую цену")
                 return 0.0
             
             # Расчет количества акций
@@ -543,8 +657,10 @@ class TradingEngine:
             
             # Минимальная проверка
             if quantity < 1:
+                logger.warning(f"❌ {signal.symbol}: Недостаточно средств для покупки (нужно минимум {current_price:.2f} ₽)")
                 return 0.0
             
+            logger.info(f"✅ {signal.symbol}: Размер позиции для покупки: {quantity} лотов на {position_value:.2f} ₽")
             return float(quantity)
             
         except Exception as e:
@@ -729,10 +845,10 @@ class TradingEngine:
                 order.status = OrderStatus.REJECTED
                 return
             
-            # Размещение ордера
-            order_info = await self.tbank_broker.place_order(
+            # Размещение ордера в лотах
+            order_info = await self.tbank_broker.place_order_lots(
                 ticker=order.symbol,
-                quantity=lots,
+                lots=lots,
                 direction=order.side.value,
                 order_type=order.order_type.value,
                 price=order.price

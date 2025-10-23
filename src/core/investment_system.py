@@ -42,6 +42,14 @@ class InvestmentSystem:
         
         logger.info("Система инвестиций инициализирована")
     
+    async def initialize_components(self):
+        """
+        Инициализация компонентов системы (для интерактивного режима)
+        """
+        logger.info("Инициализация компонентов для интерактивного режима")
+        await self._initialize_components()
+        logger.info("Компоненты готовы для интерактивного режима")
+    
     async def start_trading(self):
         """
         Запуск торговой системы
@@ -108,6 +116,12 @@ class InvestmentSystem:
         self.trading_engine.set_components(self.data_provider, self.portfolio_manager)
         self.portfolio_manager.set_data_provider(self.data_provider)
         
+        # Установка T-Bank брокера в PortfolioManager для синхронизации
+        if hasattr(self.trading_engine, 'tbank_broker') and self.trading_engine.tbank_broker:
+            self.portfolio_manager.set_tbank_broker(self.trading_engine.tbank_broker)
+            # Синхронизация с T-Bank при инициализации
+            await self.portfolio_manager.sync_with_tbank()
+        
         logger.info("Все компоненты инициализированы")
     
     async def _start_main_tasks(self):
@@ -162,8 +176,8 @@ class InvestmentSystem:
                 # Получение последних данных
                 market_data = await self.data_provider.get_latest_data()
                 
-                # Анализ нейросетями
-                predictions = await self.network_manager.analyze(market_data)
+                # Анализ нейросетями с портфельными данными
+                predictions = await self.network_manager.analyze(market_data, self.portfolio_manager)
                 
                 # Передача предсказаний в торговый движок
                 await self.trading_engine.update_predictions(predictions)

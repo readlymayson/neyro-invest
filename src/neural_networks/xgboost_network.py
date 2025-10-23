@@ -186,12 +186,14 @@ class XGBoostNetwork(BaseNeuralNetwork):
             logger.error(f"Ошибка обучения XGBoost модели {self.name}: {e}")
             raise
     
-    async def predict(self, data: pd.DataFrame) -> Dict[str, Any]:
+    async def predict(self, data: pd.DataFrame, portfolio_manager=None, symbol: str = None) -> Dict[str, Any]:
         """
         Предсказание с помощью XGBoost модели
         
         Args:
             data: Входные данные
+            portfolio_manager: Менеджер портфеля для извлечения портфельных признаков
+            symbol: Символ для анализа портфельных признаков
             
         Returns:
             Словарь с предсказаниями
@@ -200,8 +202,8 @@ class XGBoostNetwork(BaseNeuralNetwork):
             if not self.is_trained or self.model is None:
                 raise ValueError(f"Модель {self.name} не обучена")
             
-            # Подготовка данных
-            features = self.prepare_features(data)
+            # Подготовка данных с портфельными признаками
+            features = self.prepare_features(data, portfolio_manager, symbol)
             
             # Использование сохраненных признаков
             if self.feature_columns:

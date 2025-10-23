@@ -1,6 +1,6 @@
 """
-Расширенные признаки для нейросети с использованием стакана заявок
-и других рыночных данных от T-Bank API
+Расширенные признаки для нейросети с использованием стакана заявок,
+других рыночных данных от T-Bank API и портфельных данных
 """
 
 import pandas as pd
@@ -40,7 +40,9 @@ class EnhancedFeatureExtractor:
         self, 
         market_data: pd.DataFrame, 
         orderbook_data: Dict = None,
-        instrument_info: Dict = None
+        instrument_info: Dict = None,
+        portfolio_manager = None,
+        symbol: str = None
     ) -> pd.DataFrame:
         """
         Извлечение всех признаков для нейросети
@@ -49,6 +51,8 @@ class EnhancedFeatureExtractor:
             market_data: OHLCV данные
             orderbook_data: Данные стакана заявок
             instrument_info: Информация об инструменте
+            portfolio_manager: Менеджер портфеля для извлечения портфельных признаков
+            symbol: Символ для анализа портфельных признаков
             
         Returns:
             DataFrame с признаками
@@ -73,7 +77,11 @@ class EnhancedFeatureExtractor:
             if instrument_info:
                 features = self._add_instrument_features(features, instrument_info)
             
-            # 6. Нормализация признаков
+            # 6. Портфельные признаки
+            if portfolio_manager:
+                features = self._add_portfolio_features(features, portfolio_manager, symbol)
+            
+            # 7. Нормализация признаков
             features = self._normalize_features(features)
             
             logger.debug(f"Извлечено {len(features.columns)} признаков")
@@ -348,6 +356,34 @@ class EnhancedFeatureExtractor:
         
         return df
     
+    def _add_portfolio_features(self, data: pd.DataFrame, portfolio_manager, symbol: str = None) -> pd.DataFrame:
+        """Добавление портфельных признаков"""
+        df = data.copy()
+        
+        try:
+            from .portfolio_features import PortfolioFeatureExtractor
+            
+            # Создание извлекателя портфельных признаков
+            portfolio_extractor = PortfolioFeatureExtractor(self.config.get('portfolio_features', {}))
+            
+            # Извлечение портфельных признаков
+            portfolio_features = portfolio_extractor.extract_portfolio_features(portfolio_manager, symbol)
+            
+            # Конвертация в DataFrame
+            portfolio_df = portfolio_extractor.features_to_dataframe(portfolio_features)
+            
+            # Добавление портфельных признаков к основным данным
+            if not portfolio_df.empty:
+                for col in portfolio_df.columns:
+                    df[col] = portfolio_df[col].iloc[0] if len(portfolio_df) > 0 else 0.0
+            
+            logger.debug("Добавлены портфельные признаки")
+            
+        except Exception as e:
+            logger.warning(f"Ошибка добавления портфельных признаков: {e}")
+        
+        return df
+    
     def get_feature_importance_categories(self) -> Dict[str, List[str]]:
         """Получение категорий признаков для анализа важности"""
         return {
@@ -375,6 +411,18 @@ class EnhancedFeatureExtractor:
             ],
             'instrument_indicators': [
                 'Instrument_Type', 'Currency', 'Trading_Status'
+            ],
+            'portfolio_indicators': [
+                'portfolio_total_value', 'portfolio_cash_balance', 'portfolio_invested_value',
+                'portfolio_total_pnl', 'portfolio_total_pnl_percent', 'portfolio_realized_pnl',
+                'portfolio_unrealized_pnl', 'portfolio_sharpe_ratio', 'portfolio_max_drawdown',
+                'portfolio_volatility', 'portfolio_var_95', 'portfolio_position_count',
+                'portfolio_max_position_weight', 'portfolio_concentration_risk',
+                'portfolio_winning_positions', 'portfolio_losing_positions',
+                'portfolio_avg_position_pnl', 'portfolio_avg_position_pnl_percent',
+                'portfolio_days_since_last_trade', 'portfolio_age_days',
+                'portfolio_recent_trades_count', 'portfolio_beta',
+                'portfolio_correlation_with_market'
             ]
         }
     

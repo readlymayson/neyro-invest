@@ -37,6 +37,7 @@ except ImportError:
 
 from src.core.investment_system import InvestmentSystem
 from src.utils.config_selector import ConfigSelector
+from src.utils.interactive_console import start_interactive_console
 
 
 def setup_logging(config_path: str = "config/main.yaml"):
@@ -165,23 +166,71 @@ async def run_training_mode(config_path: str):
         raise
 
 
-async def run_trading_mode(config_path: str):
+async def run_interactive_mode(config_path: str):
     """
-    Режим торговли
+    Интерактивный режим с командами
     """
-    logger.info("💰 Запуск в режиме торговли")
+    logger.info("🎮 Запуск в интерактивном режиме")
     
     try:
         # Инициализация системы
         system = InvestmentSystem(config_path)
         
-        # Запуск торговой системы
-        await system.start_trading()
+        # Инициализация компонентов для интерактивного режима
+        await system.initialize_components()
+        
+        await start_interactive_console(
+            system=system,
+            portfolio=system.portfolio_manager
+        )
         
     except KeyboardInterrupt:
         logger.info("Получен сигнал остановки")
     except Exception as e:
-        logger.error(f"Ошибка в режиме торговли: {e}")
+        logger.error(f"Ошибка в интерактивном режиме: {e}")
+        raise
+
+async def run_auto_mode(config_path: str):
+    """
+    Автоматический режим торговли с интерактивной консолью
+    """
+    logger.info("🤖 Запуск в автоматическом режиме торговли")
+    
+    try:
+        # Инициализация системы
+        system = InvestmentSystem(config_path)
+        
+        # Запуск автоматической торговли в фоне
+        trading_task = asyncio.create_task(system.start_trading())
+        
+        # Запуск интерактивной консоли параллельно
+        console_task = asyncio.create_task(
+            start_interactive_console(
+                system=system,
+                portfolio=system.portfolio_manager
+            )
+        )
+        
+        # Ожидание завершения любой из задач
+        done, pending = await asyncio.wait(
+            [trading_task, console_task],
+            return_when=asyncio.FIRST_COMPLETED
+        )
+        
+        # Отмена оставшихся задач
+        for task in pending:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        
+    except KeyboardInterrupt:
+        logger.info("Получен сигнал остановки")
+        await system.stop_trading()
+    except Exception as e:
+        logger.error(f"Ошибка в автоматическом режиме: {e}")
+        await system.stop_trading()
         raise
 
 
@@ -282,7 +331,8 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Примеры использования:
-  python run.py                    # Интерактивный выбор конфигурации и запуск торговли
+  python run.py                    # Интерактивный режим с командами (по умолчанию)
+  python run.py --mode auto        # Автоматическая торговля с консолью
   python run.py --select-config    # Выбор конфигурации
   python run.py --mode train       # Обучение моделей
   python run.py --mode backtest --start 2023-01-01 --end 2023-12-31  # Бэктестинг
@@ -293,9 +343,9 @@ def main():
     
     parser.add_argument(
         '--mode',
-        choices=['trading', 'train', 'backtest'],
-        default='trading',
-        help='Режим работы (по умолчанию: trading)'
+        choices=['train', 'backtest', 'auto'],
+        default=None,
+        help='Режим работы (по умолчанию: интерактивный)'
     )
     
     parser.add_argument(
@@ -337,6 +387,7 @@ def main():
         action='store_true',
         help='Интерактивный выбор конфигурации'
     )
+    
     
     args = parser.parse_args()
     
@@ -410,8 +461,10 @@ def main():
                 logger.error("Для бэктестинга необходимо указать --start и --end")
                 sys.exit(1)
             asyncio.run(run_backtest_mode(args.config, args.start, args.end))
-        else:  # trading
-            asyncio.run(run_trading_mode(args.config))
+        elif args.mode == 'auto':
+            asyncio.run(run_auto_mode(args.config))
+        else:  # По умолчанию - интерактивный режим
+            asyncio.run(run_interactive_mode(args.config))
             
     except KeyboardInterrupt:
         logger.info("Получен сигнал остановки")
