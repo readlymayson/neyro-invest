@@ -127,6 +127,21 @@ class TradingEngine:
         self.position_size = config.get('position_size', 0.1)
         self.min_trade_interval = config.get('min_trade_interval', 3600)  # Читаем из конфига
         
+        # Ограничения размера позиций
+        position_limits = config.get('position_limits', {})
+        self.max_position_size = position_limits.get('max_position_size', 0.1)  # Максимум 10% на позицию
+        self.max_total_exposure = position_limits.get('max_total_exposure', 0.8)  # Максимум 80% в инвестициях
+        self.min_position_size = position_limits.get('min_position_size', 0.01)  # Минимум 1% на позицию
+        self.position_size_check = position_limits.get('position_size_check', True)  # Включить проверки
+        
+        # Настройки разрешения конфликтующих сигналов
+        signal_resolution = config.get('signal_resolution', {})
+        self.signal_resolution_method = signal_resolution.get('method', 'hybrid')
+        self.signal_weights = signal_resolution.get('signal_weights', {'SELL': 1.5, 'BUY': 1.0, 'HOLD': 0.5})
+        self.min_confidence_threshold = signal_resolution.get('min_confidence_threshold', 0.6)
+        self.enable_deduplication = signal_resolution.get('enable_deduplication', True)
+        self.enable_ensemble_voting = signal_resolution.get('enable_ensemble_voting', True)
+        
         # Торговые данные
         self.active_orders: Dict[str, Order] = {}
         self.order_history: List[Order] = []
@@ -361,7 +376,6 @@ class TradingEngine:
             # Проверка максимального количества позиций
             current_positions = await self.portfolio_manager.get_positions()
             if len(current_positions) >= self.max_positions:
-                logger.warning(f"❌ {symbol}: Достигнуто максимальное количество позиций ({self.max_positions})")
                 return False
             
             # Проверка существующей позиции по символу
@@ -370,11 +384,6 @@ class TradingEngine:
                 if existing_position:
                     # Если позиция уже есть, проверяем возможность увеличения
                     return await self._can_modify_position(symbol, signal)
-            
-            # Проверка лимита размера позиции для покупки
-            if signal == 'BUY':
-                if not await self._check_position_size_limit(symbol):
-                    return False
             
             return True
             
@@ -399,7 +408,10 @@ class TradingEngine:
             
             position = await self.portfolio_manager.get_position(symbol)
             if not position:
-                return True
+                if signal == 'BUY':
+                    return True
+                else:
+                    return False
             
             # Проверка времени последней сделки
             if symbol in self.last_trade_time:
@@ -416,13 +428,13 @@ class TradingEngine:
                 # Покупка при короткой позиции - разрешено
                 return True
             elif signal == 'BUY' and position.quantity > 0:
-                # Покупка при длинной позиции - проверяем лимит размера
-                if not await self._check_position_size_limit(symbol):
-                    return False
+                # Покупка при длинной позиции - только если прошло достаточно времени
                 return True
-            elif signal == 'SELL' and position.quantity < 0:
+            elif signal == 'SELL' and position.quantity <= 0:
                 # Продажа при короткой позиции - только если прошло достаточно времени
-                return True
+                return False
+            elif signal == 'HOLD' and position.quantity <= 0:
+                return False
             
             return True
             
@@ -430,93 +442,9 @@ class TradingEngine:
             logger.error(f"Ошибка проверки возможности изменения позиции: {e}")
             return False
     
-    async def _check_position_size_limit(self, symbol: str) -> bool:
-        """
-        Проверка лимита размера позиции
-        
-        Args:
-            symbol: Тикер инструмента
-            
-        Returns:
-            True если размер позиции не превышает лимит
-        """
-        try:
-            if not self.portfolio_manager:
-                return False
-            
-            # Получение текущего капитала
-            portfolio_value = await self.portfolio_manager.get_portfolio_value()
-            
-            # Получение текущей цены
-            current_price = await self._get_current_price(symbol)
-            if current_price <= 0:
-                logger.warning(f"❌ {symbol}: Не удалось получить текущую цену")
-                return False
-            
-            # Расчет размера новой позиции
-            position_value = portfolio_value * self.position_size
-            new_quantity = position_value / current_price
-            
-            # Проверка существующей позиции
-            existing_position = await self.portfolio_manager.get_position(symbol)
-            if existing_position:
-                # Если позиция уже есть, проверяем общий размер
-                total_quantity = existing_position.quantity + new_quantity
-                total_value = total_quantity * current_price
-                total_weight = (total_value / portfolio_value) * 100
-            else:
-                # Новая позиция
-                total_weight = (position_value / portfolio_value) * 100
-            
-            # Проверка лимита (10% по умолчанию)
-            max_weight = self.position_size * 100
-            
-            if total_weight > max_weight:
-                logger.warning(f"❌ {symbol}: Размер позиции {total_weight:.1f}% превышает лимит {max_weight:.1f}%")
-                return False
-            
-            logger.info(f"✅ {symbol}: Размер позиции {total_weight:.1f}% в пределах лимита {max_weight:.1f}%")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Ошибка проверки лимита размера позиции: {e}")
-            return False
-    
-    async def _get_current_price(self, symbol: str) -> float:
-        """
-        Получение текущей цены инструмента
-        
-        Args:
-            symbol: Тикер инструмента
-            
-        Returns:
-            Текущая цена или 0.0 если не удалось получить
-        """
-        try:
-            if not self.data_provider:
-                logger.warning(f"❌ {symbol}: Провайдер данных не установлен")
-                return 0.0
-            
-            # Получение последних данных
-            market_data = await self.data_provider.get_latest_data()
-            
-            if 'historical' in market_data and symbol in market_data['historical']:
-                symbol_data = market_data['historical'][symbol]
-                if not symbol_data.empty and 'Close' in symbol_data.columns:
-                    current_price = symbol_data['Close'].iloc[-1]
-                    logger.debug(f"✅ {symbol}: Текущая цена {current_price:.2f}")
-                    return float(current_price)
-            
-            logger.warning(f"❌ {symbol}: Не удалось получить цену из данных")
-            return 0.0
-            
-        except Exception as e:
-            logger.error(f"Ошибка получения цены для {symbol}: {e}")
-            return 0.0
-    
     async def execute_trades(self, signals: List[TradingSignal]):
         """
-        Выполнение торговых операций
+        Выполнение торговых операций с гибридным разрешением конфликтов
         
         Args:
             signals: Список торговых сигналов
@@ -524,10 +452,14 @@ class TradingEngine:
         try:
             logger.info(f"🔄 Обработка {len(signals)} торговых сигналов")
             
+            # Гибридное разрешение конфликтующих сигналов
+            resolved_signals = self.resolve_signals_hybrid(signals)
+            logger.info(f"📊 После разрешения конфликтов: {len(resolved_signals)} сигналов")
+            
             executed_count = 0
             rejected_count = 0
             
-            for signal in signals:
+            for signal in resolved_signals:
                 try:
                     # Сохраняем состояние до выполнения
                     initial_log_level = logger.level("INFO")
@@ -546,12 +478,158 @@ class TradingEngine:
             
             logger.info(f"📊 Статистика выполнения сигналов:")
             logger.info(f"   📈 Всего сигналов: {len(signals)}")
-            logger.info(f"   ⏸️  HOLD сигналов: {len([s for s in signals if s.signal == 'HOLD'])}")
-            logger.info(f"   🔄 Активных сигналов: {len([s for s in signals if s.signal != 'HOLD'])}")
+            logger.info(f"   🔄 После разрешения конфликтов: {len(resolved_signals)}")
+            logger.info(f"   ⏸️  HOLD сигналов: {len([s for s in resolved_signals if s.signal == 'HOLD'])}")
+            logger.info(f"   🔄 Активных сигналов: {len([s for s in resolved_signals if s.signal != 'HOLD'])}")
             logger.info(f"   ⚠️  Проверьте логи выше для детальной информации о каждом сигнале")
             
         except Exception as e:
             logger.error(f"Ошибка выполнения торговых операций: {e}")
+    
+    def resolve_signals_hybrid(self, signals: List[TradingSignal]) -> List[TradingSignal]:
+        """
+        Гибридный подход к разрешению сигналов
+        
+        Args:
+            signals: Список торговых сигналов
+            
+        Returns:
+            Список разрешенных сигналов
+        """
+        try:
+            if not signals:
+                return []
+            
+            logger.debug(f"Начало разрешения {len(signals)} сигналов методом {self.signal_resolution_method}")
+            
+            # 1. Дедупликация - убираем повторяющиеся сигналы
+            if self.enable_deduplication:
+                deduplicated = self._deduplicate_signals(signals)
+                logger.debug(f"После дедупликации: {len(deduplicated)} сигналов")
+            else:
+                deduplicated = signals
+            
+            # 2. Группировка по символам
+            symbols_signals = self._group_by_symbol(deduplicated)
+            logger.debug(f"Группировка по символам: {len(symbols_signals)} символов")
+            
+            # 3. Разрешение конфликтов для каждого символа
+            resolved_signals = []
+            for symbol, symbol_signals in symbols_signals.items():
+                if len(symbol_signals) == 1:
+                    resolved_signals.append(symbol_signals[0])
+                else:
+                    # Ансамблевое голосование с учетом приоритетов
+                    resolved_signal = self._ensemble_voting_with_priority(symbol_signals)
+                    resolved_signals.append(resolved_signal)
+                    logger.debug(f"Разрешен конфликт для {symbol}: {resolved_signal.signal} (уверенность: {resolved_signal.confidence:.3f})")
+            
+            logger.info(f"✅ Разрешение сигналов завершено: {len(signals)} → {len(resolved_signals)}")
+            return resolved_signals
+            
+        except Exception as e:
+            logger.error(f"Ошибка разрешения сигналов: {e}")
+            return signals  # Возвращаем исходные сигналы в случае ошибки
+    
+    def _deduplicate_signals(self, signals: List[TradingSignal]) -> List[TradingSignal]:
+        """
+        Удаление дублирующих сигналов
+        
+        Args:
+            signals: Список сигналов
+            
+        Returns:
+            Список уникальных сигналов
+        """
+        try:
+            # Группируем по символу и типу сигнала
+            signal_groups = {}
+            for signal in signals:
+                key = (signal.symbol, signal.signal)
+                if key not in signal_groups:
+                    signal_groups[key] = []
+                signal_groups[key].append(signal)
+            
+            deduplicated = []
+            for (symbol, signal_type), group_signals in signal_groups.items():
+                if len(group_signals) == 1:
+                    deduplicated.append(group_signals[0])
+                else:
+                    # Выбираем сигнал с наивысшей уверенностью
+                    best_signal = max(group_signals, key=lambda s: s.confidence)
+                    deduplicated.append(best_signal)
+                    logger.debug(f"Дедупликация {symbol}: выбрано {signal_type} с уверенностью {best_signal.confidence:.3f}")
+            
+            return deduplicated
+            
+        except Exception as e:
+            logger.error(f"Ошибка дедупликации сигналов: {e}")
+            return signals
+    
+    def _group_by_symbol(self, signals: List[TradingSignal]) -> Dict[str, List[TradingSignal]]:
+        """
+        Группировка сигналов по символам
+        
+        Args:
+            signals: Список сигналов
+            
+        Returns:
+            Словарь {symbol: [signals]}
+        """
+        symbols_signals = {}
+        for signal in signals:
+            if signal.symbol not in symbols_signals:
+                symbols_signals[signal.symbol] = []
+            symbols_signals[signal.symbol].append(signal)
+        
+        return symbols_signals
+    
+    def _ensemble_voting_with_priority(self, signals: List[TradingSignal]) -> TradingSignal:
+        """
+        Ансамблевое голосование с учетом приоритетов и уверенности
+        
+        Args:
+            signals: Список сигналов для одного символа
+            
+        Returns:
+            Результирующий сигнал
+        """
+        try:
+            if not signals:
+                return None
+            
+            if len(signals) == 1:
+                return signals[0]
+            
+            # Подсчет взвешенных голосов
+            weighted_votes = {'BUY': 0, 'SELL': 0, 'HOLD': 0}
+            
+            for signal in signals:
+                weight = self.signal_weights.get(signal.signal, 1.0) * signal.confidence
+                weighted_votes[signal.signal] += weight
+                logger.debug(f"Голос {signal.signal}: вес {self.signal_weights.get(signal.signal, 1.0)} * уверенность {signal.confidence:.3f} = {weight:.3f}")
+            
+            # Выбор победителя
+            winner_signal = max(weighted_votes.keys(), key=lambda k: weighted_votes[k])
+            
+            # Создание результирующего сигнала
+            winner_signals = [s for s in signals if s.signal == winner_signal]
+            best_confidence = max(s.confidence for s in winner_signals)
+            
+            logger.debug(f"Победитель: {winner_signal} с суммарным весом {weighted_votes[winner_signal]:.3f}")
+            
+            return TradingSignal(
+                symbol=signals[0].symbol,
+                signal=winner_signal,
+                confidence=best_confidence,
+                source='ensemble_resolved',
+                timestamp=datetime.now()
+            )
+            
+        except Exception as e:
+            logger.error(f"Ошибка ансамблевого голосования: {e}")
+            # Возвращаем сигнал с наивысшей уверенностью
+            return max(signals, key=lambda s: s.confidence)
     
     async def _execute_signal(self, signal: TradingSignal):
         """
@@ -570,13 +648,13 @@ class TradingEngine:
             # Проверка доступности инструмента в брокере
             if self.broker_type in ['tinkoff', 'tbank'] and self.tbank_broker:
                 if not self.tbank_broker.is_ticker_available(signal.symbol):
-                    logger.warning(f"❌ {signal.symbol}: Инструмент недоступен для торговли в T-Bank")
+                    logger.info(f"⏸️ {signal.symbol}: Инструмент недоступен для торговли в T-Bank")
                     return
             
             # Проверка на запрет коротких продаж (маржинальной торговли)
             if signal.signal == 'SELL':
                 if not await self._can_sell(signal.symbol):
-                    logger.warning(f"❌ {signal.symbol}: Невозможно продать - нет позиции или запрет коротких продаж")
+                    logger.info(f"⏸️ {signal.symbol}: Невозможно продать - нет позиции")
                     return
             
             # Расчет размера позиции
@@ -603,7 +681,7 @@ class TradingEngine:
     
     async def _calculate_position_size(self, signal: TradingSignal) -> float:
         """
-        Расчет размера позиции
+        Расчет размера позиции с учетом ограничений
         
         Args:
             signal: Торговый сигнал
@@ -619,13 +697,13 @@ class TradingEngine:
             if signal.signal == 'SELL':
                 positions = self.portfolio_manager.positions
                 if signal.symbol not in positions:
-                    logger.warning(f"❌ {signal.symbol}: Нет позиции для продажи")
+                    logger.info(f"⏸️ {signal.symbol}: Нет позиции для продажи")
                     return 0.0
                 
                 # Возвращаем количество акций в позиции (или его часть)
                 available_quantity = positions[signal.symbol].quantity
                 if available_quantity <= 0:
-                    logger.warning(f"❌ {signal.symbol}: Недостаточно акций для продажи: {available_quantity}")
+                    logger.info(f"⏸️ {signal.symbol}: Недостаточно акций для продажи: {available_quantity}")
                     return 0.0
                 
                 # Продаем всю позицию или часть (в зависимости от конфигурации)
@@ -636,7 +714,71 @@ class TradingEngine:
                 logger.info(f"✅ {signal.symbol}: Размер позиции для продажи: {sell_quantity} лотов из {available_quantity}")
                 return float(sell_quantity)
             
-            # Для покупки - расчет как процент от капитала
+            # Для покупки - расчет с учетом ограничений
+            if not self.position_size_check:
+                # Если проверки отключены, используем старую логику
+                return await self._calculate_position_size_legacy(signal)
+            
+            # Получение текущего капитала и позиций
+            portfolio_value = await self.portfolio_manager.get_portfolio_value()
+            positions = self.portfolio_manager.positions
+            
+            # Проверка максимального общего воздействия
+            current_invested_value = sum(pos.market_value for pos in positions.values())
+            max_allowed_investment = portfolio_value * self.max_total_exposure
+            
+            if current_invested_value >= max_allowed_investment:
+                logger.warning(f"❌ {signal.symbol}: Превышен лимит общего воздействия: {current_invested_value:.2f} ₽ >= {max_allowed_investment:.2f} ₽")
+                return 0.0
+            
+            # Получение текущей цены
+            current_price = await self._get_current_price(signal.symbol)
+            if current_price <= 0:
+                logger.warning(f"❌ {signal.symbol}: Не удалось получить текущую цену")
+                return 0.0
+            
+            # Расчет максимально допустимого размера позиции
+            max_position_value = portfolio_value * self.max_position_size
+            min_position_value = portfolio_value * self.min_position_size
+            
+            # Проверка существующей позиции по символу
+            existing_position_value = 0.0
+            if signal.symbol in positions:
+                existing_position_value = positions[signal.symbol].market_value
+            
+            # Расчет доступного размера для новой позиции
+            available_for_position = min(
+                max_position_value - existing_position_value,  # Не превышать лимит на позицию
+                max_allowed_investment - current_invested_value  # Не превышать общий лимит
+            )
+            
+            # Проверка минимального размера
+            if available_for_position < min_position_value:
+                logger.warning(f"❌ {signal.symbol}: Недостаточно средств для минимальной позиции: {available_for_position:.2f} ₽ < {min_position_value:.2f} ₽")
+                return 0.0
+            
+            # Расчет количества акций
+            quantity = available_for_position / current_price
+            quantity = int(quantity)
+            
+            # Минимальная проверка
+            if quantity < 1:
+                logger.warning(f"❌ {signal.symbol}: Недостаточно средств для покупки (нужно минимум {current_price:.2f} ₽)")
+                return 0.0
+            
+            position_value = quantity * current_price
+            logger.info(f"✅ {signal.symbol}: Размер позиции для покупки: {quantity} лотов на {position_value:.2f} ₽ (лимит: {max_position_value:.2f} ₽)")
+            return float(quantity)
+            
+        except Exception as e:
+            logger.error(f"Ошибка расчета размера позиции: {e}")
+            return 0.0
+    
+    async def _calculate_position_size_legacy(self, signal: TradingSignal) -> float:
+        """
+        Старый метод расчета размера позиции (без ограничений)
+        """
+        try:
             # Получение текущего капитала
             portfolio_value = await self.portfolio_manager.get_portfolio_value()
             
@@ -664,7 +806,7 @@ class TradingEngine:
             return float(quantity)
             
         except Exception as e:
-            logger.error(f"Ошибка расчета размера позиции: {e}")
+            logger.error(f"Ошибка расчета размера позиции (legacy): {e}")
             return 0.0
     
     async def _can_sell(self, symbol: str) -> bool:
@@ -751,12 +893,15 @@ class TradingEngine:
             logger.error(f"Ошибка создания ордера: {e}")
             return None
     
-    async def _submit_order(self, order: Order):
+    async def _submit_order(self, order: Order) -> bool:
         """
         Отправка ордера брокеру
         
         Args:
             order: Ордер для отправки
+            
+        Returns:
+            True если ордер успешно отправлен, False иначе
         """
         try:
             if self.broker_type == 'paper':
@@ -767,9 +912,13 @@ class TradingEngine:
             # Добавление в историю
             self.order_history.append(order)
             
+            # Возвращаем True если ордер выполнен успешно
+            return order.status == OrderStatus.FILLED
+            
         except Exception as e:
             logger.error(f"Ошибка отправки ордера {order.order_id}: {e}")
             order.status = OrderStatus.REJECTED
+            return False
     
     async def _execute_paper_order(self, order: Order):
         """

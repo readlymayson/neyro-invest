@@ -304,7 +304,7 @@ class PortfolioManager:
                         average_price = current_price
                         logger.warning(f"Средняя цена для {ticker} не рассчитана, используем текущую цену: {current_price}")
                     else:
-                        logger.info(f"Средняя цена для {ticker}: {average_price:.2f} ₽ (из транзакций)")
+                        logger.debug(f"Средняя цена для {ticker}: {average_price:.2f} ₽ (из транзакций)")
                     
                     position = Position(
                         symbol=ticker,
@@ -594,11 +594,7 @@ class PortfolioManager:
             # Фильтруем транзакции по символу
             symbol_transactions = [t for t in self.transactions if t.symbol == symbol]
             
-            logger.info(f"🔍 Анализ транзакций для {symbol}: {len(symbol_transactions)} из {len(self.transactions)} общих")
-            if symbol_transactions:
-                logger.info(f"📊 Все транзакции для {symbol}:")
-                for i, t in enumerate(symbol_transactions):
-                    logger.info(f"  {i+1}. {t.type.value}: {t.quantity} шт по {t.price:.2f} ₽")
+            logger.debug(f"Анализ транзакций для {symbol}: {len(symbol_transactions)} из {len(self.transactions)} общих")
             
             if not symbol_transactions:
                 logger.debug(f"Нет транзакций для {symbol}")
@@ -644,7 +640,7 @@ class PortfolioManager:
                 return 0.0
             
             average_price = total_cost / total_quantity
-            logger.info(f"📊 Расчет для {symbol}: total_cost={total_cost:.2f}, total_quantity={total_quantity:.0f}, avg_price={average_price:.2f}")
+            logger.debug(f"Расчет средней цены для {symbol}: {average_price:.2f} ₽")
             return average_price
             
         except Exception as e:

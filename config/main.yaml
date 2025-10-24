@@ -1,44 +1,121 @@
 # Основная конфигурация системы нейросетевых инвестиций
+# Базовый профиль на основе T-Bank Sandbox
 
-# Настройки данных
+# Основные настройки системы
+system:
+  name: "Neural Investment System"
+  version: "2.0"
+  mode: "test"  # production, test, development
+
+# Настройки провайдера данных
 data:
-  provider: yfinance
+  provider: "tbank"  # tbank, multi, yfinance, russian
   symbols:
-    - SBER
-    - GAZP
-    - LKOH
-  update_interval: 300  # 5 минут - достаточно для акций
-  history_days: 365
+    - SBER   # Сбербанк
+    - GAZP   # Газпром
+    - LKOH   # Лукойл
+    - NVTK   # Новатэк
+    - ROSN   # Роснефть
+    - GMKN   # ГМК Норникель
+    - VKCO   # ВК
+    - MGNT   # Магнит
+    - TATN   # Татнефть
+    - SNGS   # Сургутнефтегаз
+    - MOEX   # Московская Биржа
+    - POLY   # Polymetal
+    - SIBN   # Газпром нефть
+    - ALRS   # Алроса
+    - PHOR   # ФосАгро
+    - FIVE   # X5 Retail Group
+    - IRKT   # Иркутскэнерго
+    - RTKM   # Ростелеком
+    - AFLT   # Аэрофлот
+    - YNDX   # Яндекс
+    - OZON   # Озон
+    - SMLT   # Самолет
+    - MTLR   # Мечел
+    - POSI   # Positive Group
+    - TCSG   # Тинькофф
+    - BELU   # Белуга
+    - MTSS   # МТС
+    - FEES   # ФСК ЕЭС
+    - FLOT   # Совкомфлот
+    - CHMF   # Северсталь
+  
+  # T-Bank API настройки
+  tbank_token: null  # Будет загружен из переменной окружения TINKOFF_TOKEN
+  tbank_sandbox: true  # Использовать песочницу (sandbox)
+  tbank_orderbook_depth: 10  # Глубина стакана заявок
+  
+  # Настройки обновления данных
+  update_interval: 60  # секунд
+  history_days: 365  # дней исторических данных
+  
+  # Расширенные настройки
+  enhanced_features:
+    enable_orderbook: true  # Включить стакан заявок
+    enable_volume_analysis: true  # Анализ объемов
+    enable_microstructure: true  # Микроструктурный анализ
+    orderbook_depth: 10  # Глубина стакана
+    volume_periods: [5, 10, 20]  # Периоды для объемных индикаторов
+    price_periods: [5, 10, 20, 50]  # Периоды для ценовых индикаторов
+  
+  # Настройки облачной синхронизации
+  cloud_sync:
+    enabled: true  # Включить синхронизацию с облаком
+    provider: "tbank"  # Провайдер облачных данных
+    account_id: null  # Автоматически определяется
+    sync_interval: 60  # Синхронизация каждые 60 секунд
+    auto_sync: true  # Автоматическая синхронизация
+    offline_mode: false  # Режим офлайн (использовать кэш при недоступности API)
+    auto_detect_account: true  # Автоматически определять счет
 
 # Настройки нейросетей
 neural_networks:
   models:
-    - name: deepseek_analyzer
-      type: deepseek
-      weight: 0.5
-      enabled: true
-      api_key: ${DEEPSEEK_API_KEY}  # Из переменной окружения
-      base_url: "https://api.deepseek.com/v1"
-      model_name: "deepseek-chat"
-      max_tokens: 4000
-      temperature: 0.3
-      analysis_window: 30
-      feature_importance_threshold: 0.1
-      
-    - name: xgboost_classifier
-      type: xgboost
-      weight: 0.5
-      enabled: true
-      n_estimators: 100
-      max_depth: 6
-      learning_rate: 0.1
-      subsample: 0.8
-      colsample_bytree: 0.8
-      buy_threshold: 0.05
-      sell_threshold: -0.05
-      
-  analysis_interval: 1800  # 30 минут - разумно для акций
-  ensemble_method: weighted_average  # weighted_average, majority_vote, confidence_weighted
+    - name: "xgboost_enhanced"
+      type: "xgboost"
+      config:
+        n_estimators: 100
+        max_depth: 6
+        learning_rate: 0.1
+        subsample: 0.8
+        colsample_bytree: 0.8
+        random_state: 42
+        # Расширенные параметры для работы с большим количеством признаков
+        reg_alpha: 0.1
+        reg_lambda: 1.0
+        gamma: 0.1
+        min_child_weight: 3
+        # Пороги для классификации
+        buy_threshold: 0.05
+        sell_threshold: -0.05
+    
+    - name: "deepseek_enhanced"
+      type: "deepseek"
+      config:
+        model_name: "deepseek-coder"
+        max_tokens: 4000
+        temperature: 0.1
+        analysis_window: 100
+        # Расширенные параметры анализа
+        include_orderbook: true
+        include_volume_analysis: true
+        include_microstructure: true
+        # API ключ (загружается из переменной окружения)
+        api_key: null  # Будет загружен из переменной окружения DEEPSEEK_API_KEY
+  
+  # Настройки ансамбля
+  ensemble:
+    method: "weighted_average"
+    weights:
+      xgboost_enhanced: 0.6
+      deepseek_enhanced: 0.4
+    confidence_threshold: 0.7
+  
+  # Интервалы анализа
+  analysis_interval: 180  # секунд между анализами
+  signal_check_interval: 180  # секунд между проверками сигналов
   
   # Настройки портфельных признаков
   portfolio_features:
@@ -48,44 +125,162 @@ neural_networks:
 
 # Настройки торговли
 trading:
-  broker: paper  # paper, tinkoff, sber
-  signal_threshold: 0.6
-  signal_check_interval: 600  # 10 минут - разумно для акций
-  max_positions: 10
-  position_size: 0.1  # 10% от капитала на позицию
-  min_trade_interval: 3600  # 1 час между сделками по одному символу
+  broker: "tbank"
+  account_id: null  # Автоматически определяется для sandbox
+  sandbox_mode: true  # Режим песочницы
+  signal_check_interval: 3600  # секунд между проверками сигналов (1 час)
   
-  # Настройки для реального брокера
+  # Настройки брокера T-Bank
   broker_settings:
-    tinkoff:
-      token: ${TINKOFF_TOKEN}  # Из переменной окружения
-      sandbox: true            # Использовать песочницу T-Bank
-      account_id: null         # Будет создан автоматически в sandbox
-      # Документация: https://developer.tbank.ru/invest/intro/developer/sandbox
-      # В песочнице:
-      # - Виртуальные счета (хранятся 3 месяца)
-      # - Комиссия 0.05% от объема
-      # - Маржинальная торговля с плечом 2
-      # - Нет дивидендов и купонов
-    sber:
-      token: "your_sber_token"
-      sandbox: true
+    tbank:
+      token: "${TINKOFF_TOKEN}"  # Токен из переменной окружения
+      sandbox: true  # Использовать песочницу
+      account_id: null  # Автоматически создается/определяется
+      # Данные портфеля загружаются из облака T-Bank API
+      use_cloud_portfolio: true  # Использовать облачный портфель
+      sync_interval: 60  # Синхронизация с облаком каждые 60 секунд
+      auto_create_account: true  # Автоматически создавать счет в sandbox
+  
+  # Настройки позиций
+  position_sizing:
+    method: "fixed_percentage"  # fixed_percentage, kelly, volatility
+    percentage: 0.02  # 2% от капитала на позицию (для тестирования)
+    max_positions: 3  # Максимальное количество позиций
+    max_risk_per_trade: 0.01  # 1% риска на сделку
+  
+  # Настройки управления рисками
+  risk_management:
+    stop_loss: 0.05  # 5% стоп-лосс
+    take_profit: 0.15  # 15% тейк-профит
+    max_drawdown: 0.2  # 20% максимальная просадка
+    position_timeout: 7  # дней удержания позиции
+  
+  # Настройки сигналов
+  signals:
+    min_confidence: 0.8  # Минимальная уверенность для торговли (повышено)
+    cooldown_period: 7200  # секунд между сигналами (2 часа)
+    max_signals_per_day: 3  # Максимум сигналов в день
+
+  # Ограничения размера позиций
+  position_limits:
+    max_position_size: 0.1  # Максимум 10% от капитала на одну позицию
+    max_total_exposure: 0.8  # Максимум 80% от капитала в инвестициях
+    min_position_size: 0.01  # Минимум 1% от капитала на позицию
+    position_size_check: true  # Включить проверку размера позиций
+  
+  # Разрешение конфликтующих сигналов
+  signal_resolution:
+    method: hybrid  # hybrid, priority, voting, deduplication
+    signal_weights:
+      SELL: 1.5  # Больший вес для продажи (риск-менеджмент)
+      BUY: 1.0   # Стандартный вес для покупки
+      HOLD: 0.5  # Меньший вес для удержания
+    min_confidence_threshold: 0.6
+    enable_deduplication: true
+    enable_ensemble_voting: true
 
 # Настройки портфеля
 portfolio:
-  initial_capital: 1000000  # 1 миллион рублей
-  max_risk_per_trade: 0.02  # 2% риска на сделку
-  max_portfolio_risk: 0.1   # 10% максимальный риск портфеля
-  update_interval: 1800     # 30 минут - достаточно для акций
-  rebalance_threshold: 0.05 # 5% отклонение для ребалансировки
+  # Для T-Bank брокера данные загружаются из облака
+  data_source: "cloud"  # cloud, local, hybrid
+  cloud_provider: "tbank"  # Провайдер облачных данных
+  
+  # Настройки облачного портфеля
+  cloud_settings:
+    tbank:
+      account_id: null  # Автоматически определяется
+      sync_positions: true  # Синхронизация позиций из облака
+      sync_balance: true  # Синхронизация баланса из облака
+      sync_operations: true  # Синхронизация операций из облака
+      sync_interval: 60  # Синхронизация каждые 60 секунд
+      cache_duration: 300  # Кэширование данных на 5 минут
+      auto_detect_account: true  # Автоматически определять счет
+  
+  # Локальные настройки (используются как fallback)
+  initial_capital: 1000000  # 1 млн рублей (sandbox)
+  currency: "RUB"
+  sandbox_mode: true  # Режим песочницы
+  update_interval: 300  # секунд между обновлениями портфеля
+  
+  # Настройки ребалансировки
+  rebalancing:
+    enabled: true
+    frequency: "weekly"  # daily, weekly, monthly
+    threshold: 0.05  # 5% отклонение для ребалансировки
+  
+  # Настройки отчетности
+  reporting:
+    save_transactions: false  # Не сохраняем локально, используем облачные данные
+    save_performance: true  # Сохраняем метрики производительности
+    log_level: "INFO"
 
 # Настройки логирования
 logging:
-  level: DEBUG
-  file: logs/investment_system.log
-  max_size: 10 MB
-  retention: 30 days
-  format: "{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} - {message}"
+  level: "DEBUG"
+  file: "logs/enhanced_trading.log"
+  max_size: "10MB"
+  backup_count: 5
+  
+  # Специальные логи
+  orderbook_log: "logs/orderbook.log"
+  features_log: "logs/features.log"
+  performance_log: "logs/performance.log"
+
+# Настройки веб-интерфейса
+web_interface:
+  enabled: true
+  host: "localhost"
+  port: 8080
+  debug: true
+  
+  # Расширенные возможности веб-интерфейса
+  features:
+    show_orderbook: true  # Показать стакан заявок
+    show_volume_analysis: true  # Анализ объемов
+    show_feature_importance: true  # Важность признаков
+    show_microstructure: true  # Микроструктурный анализ
+    real_time_updates: true  # Обновления в реальном времени
+
+# Настройки бэктестинга
+backtesting:
+  enabled: true
+  start_date: "2023-01-01"
+  end_date: "2024-01-01"
+  initial_capital: 1000000
+  commission: 0.0005  # 0.05% комиссия (sandbox)
+  sandbox_mode: true  # Режим песочницы
+  
+  # Расширенные настройки бэктестинга
+  features:
+    include_slippage: true  # Учет проскальзывания
+    include_orderbook_impact: true  # Влияние на стакан
+    realistic_execution: true  # Реалистичное исполнение
+
+# Настройки мониторинга
+monitoring:
+  enabled: true
+  alerts:
+    high_loss: 0.05  # Алерт при убытке 5%
+    low_confidence: 0.3  # Алерт при низкой уверенности
+    connection_error: true  # Алерт при ошибках соединения
+    cloud_sync_error: true  # Алерт при ошибках синхронизации с облаком
+  
+  # Метрики производительности
+  metrics:
+    track_accuracy: true
+    track_profit_loss: true
+    track_drawdown: true
+    track_sharpe_ratio: true
+    track_max_drawdown: true
+    track_cloud_sync: true  # Отслеживание синхронизации с облаком
+  
+  # Настройки облачного мониторинга
+  cloud_monitoring:
+    enabled: true
+    sync_status_check: true  # Проверка статуса синхронизации
+    data_freshness_check: true  # Проверка актуальности данных
+    api_health_check: true  # Проверка здоровья API
+    account_status_check: true  # Проверка статуса счета
 
 # Настройки уведомлений
 notifications:
@@ -100,16 +295,3 @@ notifications:
   telegram:
     bot_token: "your_telegram_bot_token"
     chat_id: "your_chat_id"
-
-# Настройки мониторинга
-monitoring:
-  enabled: true
-  web_interface:
-    enabled: true
-    host: "localhost"
-    port: 8080
-  
-  metrics:
-    enabled: true
-    export_interval: 60  # секунды
-

@@ -22,6 +22,26 @@ data:
     - MGNT   # Магнит
     - TATN   # Татнефть
     - SNGS   # Сургутнефтегаз
+    - MOEX   # Московская Биржа
+    - POLY   # Polymetal
+    - SIBN   # Газпром нефть
+    - ALRS   # Алроса
+    - PHOR   # ФосАгро
+    - FIVE   # X5 Retail Group
+    - IRKT   # Иркутскэнерго
+    - RTKM   # Ростелеком
+    - AFLT   # Аэрофлот
+    - YNDX   # Яндекс
+    - OZON   # Озон
+    - SMLT   # Самолет
+    - MTLR   # Мечел
+    - POSI   # Positive Group
+    - TCSG   # Тинькофф
+    - BELU   # Белуга
+    - MTSS   # МТС
+    - FEES   # ФСК ЕЭС
+    - FLOT   # Совкомфлот
+    - CHMF   # Северсталь
   
   # T-Bank API настройки
   tbank_token: null  # Будет загружен из переменной окружения TINKOFF_TOKEN
@@ -136,6 +156,24 @@ trading:
     cooldown_period: 7200  # секунд между сигналами (2 часа)
     max_signals_per_day: 3  # Максимум сигналов в день
 
+  # Ограничения размера позиций
+  position_limits:
+    max_position_size: 0.1  # Максимум 10% от капитала на одну позицию
+    max_total_exposure: 0.8  # Максимум 80% от капитала в инвестициях
+    min_position_size: 0.01  # Минимум 1% от капитала на позицию
+    position_size_check: true  # Включить проверку размера позиций
+  
+  # Разрешение конфликтующих сигналов
+  signal_resolution:
+    method: hybrid  # hybrid, priority, voting, deduplication
+    signal_weights:
+      SELL: 1.5  # Больший вес для продажи (риск-менеджмент)
+      BUY: 1.0   # Стандартный вес для покупки
+      HOLD: 0.5  # Меньший вес для удержания
+    min_confidence_threshold: 0.6
+    enable_deduplication: true
+    enable_ensemble_voting: true
+
 # Настройки портфеля
 portfolio:
   # Для T-Bank брокера данные загружаются из облака
@@ -173,7 +211,7 @@ portfolio:
 
 # Настройки логирования
 logging:
-  level: "INFO"
+  level: "DEBUG"
   file: "logs/enhanced_trading.log"
   max_size: "10MB"
   backup_count: 5
@@ -188,7 +226,7 @@ web_interface:
   enabled: true
   host: "localhost"
   port: 8080
-  debug: false
+  debug: true
   
   # Расширенные возможности веб-интерфейса
   features:
