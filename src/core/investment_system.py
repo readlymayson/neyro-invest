@@ -109,6 +109,10 @@ class InvestmentSystem:
         # Инициализация торгового движка
         await self.trading_engine.initialize()
         
+        # Установка списка символов в торговый движок
+        symbols = self.config['data'].get('symbols', [])
+        self.trading_engine.set_symbols(symbols)
+        
         # Инициализация менеджера портфеля
         await self.portfolio_manager.initialize()
         

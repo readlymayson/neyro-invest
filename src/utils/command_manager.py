@@ -83,6 +83,14 @@ class CommandManager:
         )
         
         self._register_command(
+            "cooldowns", 
+            "Показать отчет по кулдаунам",
+            CommandType.INFO,
+            self._cmd_cooldowns,
+            requires_system=True
+        )
+        
+        self._register_command(
             "status", 
             "Показать статус системы",
             CommandType.INFO,
@@ -475,6 +483,27 @@ class CommandManager:
             logger.error(f"Ошибка получения позиций: {e}")
             return False
     
+    async def _cmd_cooldowns(self, args: List[str] = None) -> bool:
+        """Показать отчет по кулдаунам"""
+        try:
+            if not self.system or not self.portfolio:
+                logger.error("Система или портфель не инициализированы")
+                return False
+            
+            print("\n" + "="*60)
+            print("📊 ОТЧЕТ ПО КУЛДАУНАМ")
+            print("="*60)
+            
+            # Получаем отчет по кулдаунам
+            cooldown_report = self.portfolio.get_cooldown_report(self.system.trading_engine)
+            print(cooldown_report)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Ошибка получения отчета по кулдаунам: {e}")
+            return False
+    
     async def _cmd_status(self, args: List[str] = None) -> bool:
         """Показать статус системы"""
         try:
@@ -507,6 +536,17 @@ class CommandManager:
                 
                 print(f"🤖 Нейросети: {neural_status}")
                 print(f"📈 Торговля: {'Активна' if hasattr(self.system, 'trading_engine') else 'Не активна'}")
+                
+                # Краткая информация о кулдаунах
+                if self.portfolio and hasattr(self.system, 'trading_engine') and self.system.trading_engine:
+                    cooldown_status = self.portfolio.get_cooldown_status(self.system.trading_engine)
+                    active_cooldowns = sum(1 for status in cooldown_status.values() if status.is_active)
+                    total_symbols = len(cooldown_status)
+                    
+                    if total_symbols > 0:
+                        print(f"⏰ Кулдауны: {active_cooldowns}/{total_symbols} активных")
+                    else:
+                        print("⏰ Кулдауны: Нет данных")
             
             print("="*50)
             return True

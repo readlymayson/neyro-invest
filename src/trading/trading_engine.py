@@ -127,6 +127,9 @@ class TradingEngine:
         self.position_size = config.get('position_size', 0.1)
         self.min_trade_interval = config.get('min_trade_interval', 3600)  # Читаем из конфига
         
+        # Список символов для торговли (будет установлен при инициализации)
+        self.symbols = []
+        
         # Ограничения размера позиций
         position_limits = config.get('position_limits', {})
         self.max_position_size = position_limits.get('max_position_size', 0.1)  # Максимум 10% на позицию
@@ -142,6 +145,20 @@ class TradingEngine:
         self.enable_deduplication = signal_resolution.get('enable_deduplication', True)
         self.enable_ensemble_voting = signal_resolution.get('enable_ensemble_voting', True)
         
+        # Раздельные задержки по типам сигналов
+        signal_cooldowns = config.get('signal_cooldowns', {})
+        self.buy_cooldown = signal_cooldowns.get('buy_cooldown', 1800)    # 30 минут для покупок
+        self.sell_cooldown = signal_cooldowns.get('sell_cooldown', 3600)   # 1 час для продаж
+        self.hold_cooldown = signal_cooldowns.get('hold_cooldown', 900)     # 15 минут для удержания
+        
+        # Защита от частых продаж
+        sell_protection = config.get('sell_signal_protection', {})
+        self.sell_protection_enabled = sell_protection.get('enabled', True)
+        self.min_confidence_increase = sell_protection.get('min_confidence_increase', 0.1)
+        self.max_sells_per_hour = sell_protection.get('max_sells_per_hour', 2)
+        self.panic_sell_threshold = sell_protection.get('panic_sell_threshold', 0.9)
+        self.filter_cooldown_signals = sell_protection.get('filter_cooldown_signals', True)
+        
         # Торговые данные
         self.active_orders: Dict[str, Order] = {}
         self.order_history: List[Order] = []
@@ -150,6 +167,8 @@ class TradingEngine:
         
         # Защита от частых перепродаж
         self.last_trade_time: Dict[str, datetime] = {}  # Последняя сделка по символу
+        self.sell_history: Dict[str, List[datetime]] = {}  # История продаж по символу
+        self.last_sell_confidence: Dict[str, float] = {}   # Последняя уверенность продажи
         
         # Компоненты системы
         self.data_provider: Optional[DataProvider] = None
@@ -174,6 +193,16 @@ class TradingEngine:
         await self._load_order_history()
         
         logger.info("Торговый движок инициализирован")
+    
+    def set_symbols(self, symbols: List[str]):
+        """
+        Установка списка символов для торговли
+        
+        Args:
+            symbols: Список символов инструментов
+        """
+        self.symbols = symbols.copy()
+        logger.debug(f"Установлено {len(self.symbols)} символов для торговли: {self.symbols}")
     
     async def _initialize_broker(self):
         """
@@ -249,8 +278,21 @@ class TradingEngine:
             predictions: Предсказания от нейросетей по всем символам
         """
         try:
-            # Очищаем старые сигналы
-            self.trading_signals.clear()
+            # НЕ очищаем старые сигналы - сохраняем историю для кулдауна
+            # self.trading_signals.clear()  # Убрано для сохранения кулдауна
+            
+            # Очищаем только устаревшие сигналы (старше 5 минут)
+            current_time = datetime.now()
+            expired_signals = []
+            for key, signal in self.trading_signals.items():
+                if current_time - signal.timestamp > timedelta(minutes=5):
+                    expired_signals.append(key)
+            
+            for key in expired_signals:
+                del self.trading_signals[key]
+            
+            if expired_signals:
+                logger.debug(f"Очищено {len(expired_signals)} устаревших сигналов")
             
             # Обработка предсказаний каждой модели для каждого символа
             if 'individual_predictions' in predictions:
@@ -263,6 +305,11 @@ class TradingEngine:
                         # Создание торгового сигнала
                         signal = self._create_trading_signal(prediction, model_name)
                         if signal:
+                            # Фильтрация сигналов на кулдауне перед сохранением
+                            if self.filter_cooldown_signals and not await self._can_execute_signal_by_type(signal):
+                                logger.debug(f"🚫 {signal.symbol}: Сигнал {signal.signal} отфильтрован на кулдауне при создании")
+                                continue
+                            
                             # Ключ с именем модели и символом
                             key = f"{model_name}_{symbol}"
                             self.trading_signals[key] = signal
@@ -275,6 +322,11 @@ class TradingEngine:
                         'ensemble'
                     )
                     if ensemble_signal:
+                        # Фильтрация сигналов на кулдауне перед сохранением
+                        if self.filter_cooldown_signals and not await self._can_execute_signal_by_type(ensemble_signal):
+                            logger.debug(f"🚫 {ensemble_signal.symbol}: Ансамблевый сигнал {ensemble_signal.signal} отфильтрован на кулдауне при создании")
+                            continue
+                        
                         key = f"ensemble_{symbol}"
                         self.trading_signals[key] = ensemble_signal
             
@@ -345,6 +397,11 @@ class TradingEngine:
                 
                 # Проверка уверенности
                 if signal.confidence < self.signal_threshold:
+                    continue
+                
+                # Фильтрация сигналов на кулдауне перед анализом
+                if self.filter_cooldown_signals and not await self._can_execute_signal_by_type(signal):
+                    logger.debug(f"🚫 {signal.symbol}: Сигнал {signal.signal} отфильтрован на кулдауне")
                     continue
                 
                 # Проверка возможности открытия позиции
@@ -442,6 +499,111 @@ class TradingEngine:
             logger.error(f"Ошибка проверки возможности изменения позиции: {e}")
             return False
     
+    async def _can_execute_signal_by_type(self, signal: TradingSignal) -> bool:
+        """
+        Проверка возможности выполнения сигнала с учетом типа и задержек
+        
+        Args:
+            signal: Торговый сигнал
+            
+        Returns:
+            True если сигнал можно выполнить
+        """
+        try:
+            symbol = signal.symbol
+            signal_type = signal.signal
+            current_time = datetime.now()
+            
+            # Определяем задержку в зависимости от типа сигнала
+            if signal_type == 'BUY':
+                cooldown = self.buy_cooldown
+            elif signal_type == 'SELL':
+                cooldown = self.sell_cooldown
+            elif signal_type == 'HOLD':
+                cooldown = self.hold_cooldown
+            else:
+                cooldown = self.min_trade_interval
+            
+            # Проверка времени последней сделки
+            if self.portfolio_manager and symbol in self.portfolio_manager.last_trade_time:
+                time_since_last_trade = current_time - self.portfolio_manager.last_trade_time[symbol]
+                if time_since_last_trade.total_seconds() < cooldown:
+                    logger.debug(f"⏸️ {symbol}: {signal_type} заблокирован - прошло {time_since_last_trade.total_seconds()/60:.1f} мин (нужно {cooldown/60:.1f} мин)")
+                    return False
+            
+            # Дополнительные проверки для продаж
+            if signal_type == 'SELL' and self.sell_protection_enabled:
+                return await self._can_execute_sell_signal(signal)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Ошибка проверки возможности выполнения сигнала: {e}")
+            return False
+    
+    async def _can_execute_sell_signal(self, signal: TradingSignal) -> bool:
+        """
+        Проверка возможности выполнения сигнала продажи с дополнительными ограничениями
+        
+        Args:
+            signal: Торговый сигнал продажи
+            
+        Returns:
+            True если продажу можно выполнить
+        """
+        try:
+            symbol = signal.symbol
+            current_time = datetime.now()
+            
+            # Проверка времени последней продажи
+            if self.portfolio_manager and symbol in self.portfolio_manager.last_trade_time:
+                time_since_last_sell = current_time - self.portfolio_manager.last_trade_time[symbol]
+                if time_since_last_sell.total_seconds() < self.sell_cooldown:
+                    logger.info(f"⏸️ {symbol}: Продажа заблокирована - прошло {time_since_last_sell.total_seconds()/60:.1f} мин")
+                    return False
+            
+            # Проверка количества продаж в час
+            if self.portfolio_manager and symbol in self.portfolio_manager.sell_history:
+                recent_sells = [
+                    sell_time for sell_time in self.portfolio_manager.sell_history[symbol]
+                    if (current_time - sell_time).total_seconds() < 3600
+                ]
+                if len(recent_sells) >= self.max_sells_per_hour:
+                    logger.warning(f"⚠️ {symbol}: Превышен лимит продаж в час ({self.max_sells_per_hour})")
+                    return False
+            
+            # Проверка увеличения уверенности (кроме панических продаж)
+            if signal.confidence < self.panic_sell_threshold and self.portfolio_manager and symbol in self.portfolio_manager.last_sell_confidence:
+                confidence_increase = signal.confidence - self.portfolio_manager.last_sell_confidence[symbol]
+                if confidence_increase < self.min_confidence_increase:
+                    logger.info(f"⏸️ {symbol}: Продажа заблокирована - недостаточное увеличение уверенности ({confidence_increase:.3f})")
+                    return False
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Ошибка проверки возможности продажи: {e}")
+            return False
+    
+    def _get_signal_cooldown(self, signal_type: str) -> int:
+        """
+        Получение задержки для типа сигнала
+        
+        Args:
+            signal_type: Тип сигнала (BUY/SELL/HOLD)
+            
+        Returns:
+            Задержка в секундах
+        """
+        if signal_type == 'BUY':
+            return self.buy_cooldown
+        elif signal_type == 'SELL':
+            return self.sell_cooldown
+        elif signal_type == 'HOLD':
+            return self.hold_cooldown
+        else:
+            return self.min_trade_interval
+    
     async def execute_trades(self, signals: List[TradingSignal]):
         """
         Выполнение торговых операций с гибридным разрешением конфликтов
@@ -461,6 +623,12 @@ class TradingEngine:
             
             for signal in resolved_signals:
                 try:
+                    # Проверка возможности выполнения сигнала с учетом задержек
+                    if not await self._can_execute_signal_by_type(signal):
+                        logger.debug(f"⏸️ {signal.symbol}: Сигнал {signal.signal} заблокирован задержкой")
+                        rejected_count += 1
+                        continue
+                    
                     # Сохраняем состояние до выполнения
                     initial_log_level = logger.level("INFO")
                     
@@ -645,6 +813,10 @@ class TradingEngine:
             
             logger.info(f"Обработка сигнала {signal.signal} для {signal.symbol}")
             
+            # Устанавливаем кулдаун для инструмента при обработке сигнала
+            if self.portfolio_manager:
+                await self.portfolio_manager.set_cooldown_for_symbol(signal.symbol, signal.signal)
+            
             # Проверка доступности инструмента в брокере
             if self.broker_type in ['tinkoff', 'tbank'] and self.tbank_broker:
                 if not self.tbank_broker.is_ticker_available(signal.symbol):
@@ -671,8 +843,14 @@ class TradingEngine:
             
             # Выполнение ордера
             result = await self._submit_order(order)
+            logger.debug(f"🔍 {signal.symbol}: Результат _submit_order: {result}, статус ордера: {order.status}")
+            
             if result:
                 logger.info(f"✅ {signal.symbol}: Сигнал {signal.signal} выполнен - {order.quantity} штук")
+                
+                # Сохранение уверенности последней продажи для защиты от частых продаж
+                if signal.signal == 'SELL' and self.portfolio_manager:
+                    await self.portfolio_manager.set_last_sell_confidence(signal.symbol, signal.confidence)
             else:
                 logger.warning(f"❌ {signal.symbol}: Ордер не выполнен - ошибка брокера")
             
@@ -947,9 +1125,6 @@ class TradingEngine:
             if self.portfolio_manager:
                 await self._update_portfolio_from_order(order)
             
-            # Обновление времени последней сделки
-            self.last_trade_time[order.symbol] = datetime.now()
-            
             logger.info(f"Бумажный ордер {order.order_id} выполнен: {order.filled_quantity} @ {order.filled_price}")
             
         except Exception as e:
@@ -1014,9 +1189,6 @@ class TradingEngine:
                 # Обновление портфеля
                 if self.portfolio_manager:
                     await self._update_portfolio_from_order(order)
-                
-                # Обновление времени последней сделки
-                self.last_trade_time[order.symbol] = datetime.now()
                 
                 logger.info(
                     f"T-Bank ордер {order_info.get('order_id')} выполнен: "

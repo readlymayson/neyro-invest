@@ -22,25 +22,7 @@ data:
     - TATN   # Татнефть
     - SNGS   # Сургутнефтегаз
     - MOEX   # Московская Биржа
-    - POLY   # Polymetal
-    - SIBN   # Газпром нефть
-    - ALRS   # Алроса
-    - PHOR   # ФосАгро
-    - FIVE   # X5 Retail Group
-    - IRKT   # Иркутскэнерго
-    - RTKM   # Ростелеком
-    - AFLT   # Аэрофлот
-    - YNDX   # Яндекс
-    - OZON   # Озон
-    - SMLT   # Самолет
-    - MTLR   # Мечел
-    - POSI   # Positive Group
-    - TCSG   # Тинькофф
-    - BELU   # Белуга
-    - MTSS   # МТС
-    - FEES   # ФСК ЕЭС
-    - FLOT   # Совкомфлот
-    - CHMF   # Северсталь
+
   
   # T-Bank API настройки
   tbank_token: null  # Будет загружен из переменной окружения TINKOFF_TOKEN
@@ -76,11 +58,11 @@ neural_networks:
     - name: "xgboost_enhanced"
       type: "xgboost"
       config:
-        n_estimators: 100
-        max_depth: 6
-        learning_rate: 0.1
-        subsample: 0.8
-        colsample_bytree: 0.8
+      n_estimators: 100
+      max_depth: 6
+      learning_rate: 0.1
+      subsample: 0.8
+      colsample_bytree: 0.8
         random_state: 42
         # Расширенные параметры для работы с большим количеством признаков
         reg_alpha: 0.1
@@ -88,9 +70,9 @@ neural_networks:
         gamma: 0.1
         min_child_weight: 3
         # Пороги для классификации
-        buy_threshold: 0.05
-        sell_threshold: -0.05
-    
+      buy_threshold: 0.05
+      sell_threshold: -0.05
+      
     - name: "deepseek_enhanced"
       type: "deepseek"
       config:
@@ -160,6 +142,20 @@ trading:
     min_confidence: 0.8  # Минимальная уверенность для торговли (повышено)
     cooldown_period: 7200  # секунд между сигналами (2 часа)
     max_signals_per_day: 3  # Максимум сигналов в день
+
+  # Раздельные задержки по типам сигналов
+  signal_cooldowns:
+    buy_cooldown: 1800    # 30 минут для покупок
+    sell_cooldown: 3600   # 1 час для продаж (больше риска)
+    hold_cooldown: 900    # 15 минут для удержания
+    
+  # Защита от частых продаж
+  sell_signal_protection:
+    enabled: true
+    min_confidence_increase: 0.1  # Минимальное увеличение уверенности для повторной продажи
+    max_sells_per_hour: 2         # Максимум продаж в час
+    panic_sell_threshold: 0.9     # Порог для панических продаж
+    filter_cooldown_signals: true  # Фильтровать сигналы на кулдауне перед анализом
 
   # Ограничения размера позиций
   position_limits:

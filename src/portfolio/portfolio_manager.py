@@ -3,6 +3,8 @@
 """
 
 import asyncio
+import json
+import os
 from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime, timedelta
 from loguru import logger
@@ -44,6 +46,18 @@ class Transaction:
     commission: float
     timestamp: datetime
     notes: Optional[str] = None
+
+
+@dataclass
+class CooldownStatus:
+    """Статус кулдауна для инструмента"""
+    symbol: str
+    signal_type: str  # BUY, SELL, HOLD
+    last_trade_time: Optional[datetime]
+    cooldown_remaining: int  # секунды до окончания кулдауна
+    is_active: bool  # активен ли кулдаун
+    sell_count_last_hour: int  # количество продаж за последний час
+    last_sell_confidence: Optional[float]  # уверенность последней продажи
 
 
 @dataclass
@@ -91,6 +105,11 @@ class PortfolioManager:
         self.transactions: List[Transaction] = []
         self.portfolio_history: List[Dict] = []
         
+        # Состояние кулдаунов (перенесено из TradingEngine)
+        self.last_trade_time: Dict[str, datetime] = {}  # Последняя сделка по символу
+        self.sell_history: Dict[str, List[datetime]] = {}  # История продаж по символу
+        self.last_sell_confidence: Dict[str, float] = {}  # Уверенность последней продажи
+        
         # Метрики
         self.current_metrics: Optional[PortfolioMetrics] = None
         self.risk_metrics: Dict[str, float] = {}
@@ -115,7 +134,106 @@ class PortfolioManager:
         # Расчет метрик портфеля
         await self.update_portfolio()
         
+        # Загрузка состояния кулдаунов
+        await self._load_cooldown_state()
+        
         logger.info("Менеджер портфеля инициализирован")
+    
+    async def _load_cooldown_state(self):
+        """
+        Загрузка состояния кулдаунов из файла
+        """
+        try:
+            cooldown_file = "data/cooldown_state.json"
+            if os.path.exists(cooldown_file):
+                with open(cooldown_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                
+                # Восстанавливаем last_trade_time
+                for symbol, timestamp_str in data.get('last_trade_time', {}).items():
+                    self.last_trade_time[symbol] = datetime.fromisoformat(timestamp_str)
+                
+                # Восстанавливаем sell_history
+                for symbol, timestamps in data.get('sell_history', {}).items():
+                    self.sell_history[symbol] = [datetime.fromisoformat(ts) for ts in timestamps]
+                
+                # Восстанавливаем last_sell_confidence
+                self.last_sell_confidence.update(data.get('last_sell_confidence', {}))
+                
+                logger.info(f"Загружено состояние кулдаунов для {len(self.last_trade_time)} инструментов")
+        except Exception as e:
+            logger.warning(f"Не удалось загрузить состояние кулдаунов: {e}")
+    
+    async def _save_cooldown_state(self):
+        """
+        Сохранение состояния кулдаунов в файл
+        """
+        try:
+            cooldown_file = "data/cooldown_state.json"
+            os.makedirs(os.path.dirname(cooldown_file), exist_ok=True)
+            
+            data = {
+                'last_trade_time': {
+                    symbol: timestamp.isoformat() 
+                    for symbol, timestamp in self.last_trade_time.items()
+                },
+                'sell_history': {
+                    symbol: [ts.isoformat() for ts in timestamps]
+                    for symbol, timestamps in self.sell_history.items()
+                },
+                'last_sell_confidence': self.last_sell_confidence
+            }
+            
+            with open(cooldown_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+                
+            logger.debug("Состояние кулдаунов сохранено")
+        except Exception as e:
+            logger.warning(f"Не удалось сохранить состояние кулдаунов: {e}")
+    
+    async def set_cooldown_for_symbol(self, symbol: str, signal_type: str):
+        """
+        Установка кулдауна для инструмента при обработке сигнала
+        
+        Args:
+            symbol: Символ инструмента
+            signal_type: Тип сигнала (BUY, SELL, HOLD)
+        """
+        current_time = datetime.now()
+        
+        # Устанавливаем время последней сделки
+        self.last_trade_time[symbol] = current_time
+        
+        # Для продаж добавляем в историю продаж
+        if signal_type == 'SELL':
+            if symbol not in self.sell_history:
+                self.sell_history[symbol] = []
+            self.sell_history[symbol].append(current_time)
+            
+            # Очищаем старые записи (старше 24 часов)
+            cutoff_time = current_time - timedelta(hours=24)
+            self.sell_history[symbol] = [
+                sell_time for sell_time in self.sell_history[symbol]
+                if sell_time > cutoff_time
+            ]
+        
+        logger.info(f"⏰ {symbol}: Установлен кулдаун для сигнала {signal_type}")
+        
+        # Сохраняем состояние кулдауна
+        await self._save_cooldown_state()
+    
+    async def set_last_sell_confidence(self, symbol: str, confidence: float):
+        """
+        Установка уверенности последней продажи
+        
+        Args:
+            symbol: Символ инструмента
+            confidence: Уверенность сигнала
+        """
+        self.last_sell_confidence[symbol] = confidence
+        
+        # Сохраняем состояние кулдауна
+        await self._save_cooldown_state()
     
     async def _load_transaction_history(self):
         """
@@ -950,3 +1068,163 @@ class PortfolioManager:
             'max_drawdown': self.current_metrics.max_drawdown if self.current_metrics else 0,
             'last_update': self.current_metrics.last_updated.isoformat() if self.current_metrics else None
         }
+    
+    def get_cooldown_status(self, trading_engine=None) -> Dict[str, CooldownStatus]:
+        """
+        Получение статуса кулдаунов для всех инструментов
+        
+        Args:
+            trading_engine: Торговый движок для получения информации о кулдаунах
+            
+        Returns:
+            Словарь со статусом кулдаунов по символам
+        """
+        cooldown_status = {}
+        
+        if not trading_engine:
+            logger.warning("Торговый движок не предоставлен для получения статуса кулдаунов")
+            return cooldown_status
+        
+        current_time = datetime.now()
+        
+        # Получаем все символы из позиций, торговых сигналов и конфигурации
+        all_symbols = set()
+        all_symbols.update(self.positions.keys())
+        all_symbols.update(trading_engine.trading_signals.keys())
+        
+        # Добавляем все символы из конфигурации для полного отчета
+        if hasattr(trading_engine, 'symbols') and trading_engine.symbols:
+            all_symbols.update(trading_engine.symbols)
+        
+        # Если нет символов в торговом движке, получаем их из провайдера данных
+        if not all_symbols and hasattr(trading_engine, 'data_provider') and trading_engine.data_provider:
+            if hasattr(trading_engine.data_provider, 'symbols') and trading_engine.data_provider.symbols:
+                all_symbols.update(trading_engine.data_provider.symbols)
+        
+        for symbol in all_symbols:
+            # Получаем информацию о последней сделке
+            last_trade_time = self.last_trade_time.get(symbol)
+            
+            # Логируем состояние кулдауна для отладки
+            if symbol == 'VKCO':
+                logger.info(f"🔍 VKCO: last_trade_time={last_trade_time}, sell_history={self.sell_history.get(symbol, [])}")
+            
+            # Определяем тип последнего сигнала
+            signal_type = "HOLD"
+            if symbol in trading_engine.trading_signals:
+                signal_type = trading_engine.trading_signals[symbol].signal
+            
+            # Рассчитываем оставшееся время кулдауна
+            cooldown_remaining = 0
+            is_active = False
+            
+            if last_trade_time:
+                time_since_last_trade = current_time - last_trade_time
+                
+                # Определяем задержку в зависимости от типа сигнала
+                if signal_type == 'BUY':
+                    cooldown_duration = trading_engine.buy_cooldown
+                elif signal_type == 'SELL':
+                    cooldown_duration = trading_engine.sell_cooldown
+                elif signal_type == 'HOLD':
+                    cooldown_duration = trading_engine.hold_cooldown
+                else:
+                    cooldown_duration = trading_engine.min_trade_interval
+                
+                cooldown_remaining = max(0, cooldown_duration - int(time_since_last_trade.total_seconds()))
+                is_active = cooldown_remaining > 0
+            
+            # Подсчитываем количество продаж за последний час
+            sell_count_last_hour = 0
+            if symbol in self.sell_history:
+                cutoff_time = current_time - timedelta(hours=1)
+                sell_count_last_hour = len([
+                    sell_time for sell_time in self.sell_history[symbol]
+                    if sell_time > cutoff_time
+                ])
+            
+            # Получаем уверенность последней продажи
+            last_sell_confidence = self.last_sell_confidence.get(symbol)
+            
+            cooldown_status[symbol] = CooldownStatus(
+                symbol=symbol,
+                signal_type=signal_type,
+                last_trade_time=last_trade_time,
+                cooldown_remaining=cooldown_remaining,
+                is_active=is_active,
+                sell_count_last_hour=sell_count_last_hour,
+                last_sell_confidence=last_sell_confidence
+            )
+        
+        return cooldown_status
+    
+    def get_cooldown_report(self, trading_engine=None) -> str:
+        """
+        Получение отчета по кулдаунам
+        
+        Args:
+            trading_engine: Торговый движок для получения информации о кулдаунах
+            
+        Returns:
+            Строка с отчетом по кулдаунам
+        """
+        if not trading_engine:
+            return "❌ Торговый движок не доступен для отчета по кулдаунам"
+        
+        cooldown_status = self.get_cooldown_status(trading_engine)
+        
+        if not cooldown_status:
+            return "ℹ️ Нет активных кулдаунов"
+        
+        report_lines = ["📊 ОТЧЕТ ПО КУЛДАУНАМ", "=" * 50]
+        
+        # Группируем по статусу
+        active_cooldowns = []
+        inactive_symbols = []
+        
+        for symbol, status in cooldown_status.items():
+            if status.is_active:
+                active_cooldowns.append(status)
+            else:
+                inactive_symbols.append(status)
+        
+        # Активные кулдауны
+        if active_cooldowns:
+            report_lines.append(f"\n🔒 АКТИВНЫЕ КУЛДАУНЫ ({len(active_cooldowns)}):")
+            for status in sorted(active_cooldowns, key=lambda x: x.cooldown_remaining, reverse=True):
+                minutes_remaining = status.cooldown_remaining // 60
+                seconds_remaining = status.cooldown_remaining % 60
+                
+                signal_emoji = "🟢" if status.signal_type == "BUY" else "🔴" if status.signal_type == "SELL" else "🟡"
+                
+                report_lines.append(
+                    f"  {signal_emoji} {status.symbol}: {status.signal_type} "
+                    f"({minutes_remaining:02d}:{seconds_remaining:02d} осталось)"
+                )
+                
+                if status.signal_type == "SELL" and status.sell_count_last_hour > 0:
+                    report_lines.append(f"    📈 Продаж за час: {status.sell_count_last_hour}")
+                    if status.last_sell_confidence:
+                        report_lines.append(f"    🎯 Последняя уверенность: {status.last_sell_confidence:.3f}")
+        
+        # Доступные для торговли
+        if inactive_symbols:
+            report_lines.append(f"\n✅ ДОСТУПНЫ ДЛЯ ТОРГОВЛИ ({len(inactive_symbols)}):")
+            for status in sorted(inactive_symbols, key=lambda x: x.symbol):
+                signal_emoji = "🟢" if status.signal_type == "BUY" else "🔴" if status.signal_type == "SELL" else "🟡"
+                report_lines.append(f"  {signal_emoji} {status.symbol}: {status.signal_type}")
+        
+        # Статистика
+        report_lines.append(f"\n📈 СТАТИСТИКА:")
+        report_lines.append(f"  Всего инструментов: {len(cooldown_status)}")
+        report_lines.append(f"  Активных кулдаунов: {len(active_cooldowns)}")
+        report_lines.append(f"  Доступных для торговли: {len(inactive_symbols)}")
+        
+        # Настройки кулдаунов
+        report_lines.append(f"\n⚙️ НАСТРОЙКИ КУЛДАУНОВ:")
+        report_lines.append(f"  Покупка: {trading_engine.buy_cooldown // 60} мин")
+        report_lines.append(f"  Продажа: {trading_engine.sell_cooldown // 60} мин")
+        report_lines.append(f"  Удержание: {trading_engine.hold_cooldown // 60} мин")
+        report_lines.append(f"  Максимум продаж в час: {trading_engine.max_sells_per_hour}")
+        
+        return "\n".join(report_lines)
