@@ -36,6 +36,7 @@ ENV/
 .DS_Store
 
 # Project specific
+logs/
 logs/*.log
 models/*.pkl
 models/*.h5
@@ -47,10 +48,11 @@ models/*.h5
 environment.env
 
 # Data files
-data/portfolio.json
-data/signals.json
-data/*.csv
-data/*.db
+data/
+
+# Backtest results and charts
+backtest_charts*/
+backtest_results*.csv
 
 # Temporary files
 *.tmp

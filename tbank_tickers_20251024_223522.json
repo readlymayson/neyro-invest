@@ -1,0 +1,2307 @@
+{
+  "timestamp": "20251024_223522",
+  "total_count": 164,
+  "russian_count": 164,
+  "us_count": 0,
+  "russian_tickers": [
+    {
+      "ticker": "VSMO",
+      "name": "ВСМПО-АВИСМА",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "UNAC",
+      "name": "Объединенная авиастроительная корпорация",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "CNRU",
+      "name": "Циан",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "VKCO",
+      "name": "ВК",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MGNT",
+      "name": "Магнит",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "KZIZ",
+      "name": "Красногорский завод им. С.А. Зверева - ао",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "otc_ncc"
+    },
+    {
+      "ticker": "KZOSP",
+      "name": "Казаньоргсинтез - акции привилегированные",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "WUSH",
+      "name": "Whoosh",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "UGLD",
+      "name": "Южуралзолото ГК",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_morning_weekend"
+    },
+    {
+      "ticker": "LNZL",
+      "name": "Лензолото",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SELG",
+      "name": "Селигдар",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SLAV",
+      "name": "Славнефть",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "otc_ncc"
+    },
+    {
+      "ticker": "PRFN",
+      "name": "ЧЗПСН-Профнастил",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "CARM",
+      "name": "КарМани",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "RUAL",
+      "name": "РУСАЛ",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "NKHP",
+      "name": "НКХП",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "TGKJ",
+      "name": "Форвард Энерго",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "otc_ncc"
+    },
+    {
+      "ticker": "ALRS",
+      "name": "АЛРОСА",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "DIAS",
+      "name": "Диасофт",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "TATN",
+      "name": "Татнефть",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "RTKM",
+      "name": "Ростелеком",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "PRMD",
+      "name": "Промомед",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "TGKN",
+      "name": "ТГК-14",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "TRNFP",
+      "name": "Транснефть - привилегированные акции",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "ZILLP",
+      "name": "ЗИЛ - акции привилегированные",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "otc_ncc"
+    },
+    {
+      "ticker": "RAGR",
+      "name": "РусАгро",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "GCHE",
+      "name": "Группа Черкизово",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "UWGN",
+      "name": "ОВК",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SNGSP",
+      "name": "Сургутнефтегаз - привилегированные акции",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "FIXR",
+      "name": "Публичное акционерное общество \"Фикс Прайс\"",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "NKNC",
+      "name": "Нижнекамскнефтехим",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "VRSB",
+      "name": "ТНС энерго Воронеж",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MBNK",
+      "name": "МТС-Банк",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MOEX",
+      "name": "Московская Биржа",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "NOMP",
+      "name": "Новошип - ао",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "otc_ncc"
+    },
+    {
+      "ticker": "KAZTP",
+      "name": "КуйбышевАзот - Акции привилегированные",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SNGS",
+      "name": "Сургутнефтегаз",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "TGKBP",
+      "name": "ТГК-2 - акции привилегированные",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "PIKK",
+      "name": "ПИК",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "ROSN",
+      "name": "Роснефть",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "EUTR",
+      "name": "ЕвроТранс",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MRKU",
+      "name": "Россети Урал",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "ENPG",
+      "name": "Эн+",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "T",
+      "name": "Т-Технологии",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "UFOSP",
+      "name": "Уфаоргсинтез - привилегированные акции",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "otc_ncc"
+    },
+    {
+      "ticker": "MRKV",
+      "name": "Россети Волга",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "CNTL",
+      "name": "Центральный Телеграф",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "VSEH",
+      "name": "ВИ.РУ",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SVAV",
+      "name": "СОЛЛЕРС",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "KMAZ",
+      "name": "КАМАЗ",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "KZOS",
+      "name": "Казаньоргсинтез - акции обыкновенные",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "ELFV",
+      "name": "ЭЛ5-Энерго",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "HEAD",
+      "name": "Хэдхантер",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "ETLN",
+      "name": "МКПАО Эталон Груп",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SMLT",
+      "name": "ГК Самолет",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SBER",
+      "name": "Сбер Банк",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "GECO",
+      "name": "Генетико",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "GAZP",
+      "name": "Газпром",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "BSPB",
+      "name": "Банк Санкт-Петербург",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "LSNG",
+      "name": "Россети Ленэнерго",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "RENI",
+      "name": "Ренессанс Страхование",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "POSI",
+      "name": "Группа Позитив",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "KROT",
+      "name": "Красный Октябрь",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SIBN",
+      "name": "Газпром нефть",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "KLSB",
+      "name": "Калужская сбытовая компания",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "CHMK",
+      "name": "ЧМК",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MRKZ",
+      "name": "Россети Северо-Запад",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "APTK",
+      "name": "Аптечная сеть 36,6",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "HYDR",
+      "name": "РусГидро",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "LNZLP",
+      "name": "Лензолото - привилегированные акции",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SFIN",
+      "name": "ЭсЭфАй",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "RASP",
+      "name": "Распадская",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "NOMPP",
+      "name": "Новошип - привилегированные акции",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "otc_ncc"
+    },
+    {
+      "ticker": "GMKN",
+      "name": "Норильский никель",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "UPRO",
+      "name": "Юнипро",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MSNG",
+      "name": "Мосэнерго",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "AFKS",
+      "name": "АФК Система",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "PLZL",
+      "name": "Полюс",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "LEAS",
+      "name": "Европлан",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "CNTLP",
+      "name": "Центральный Телеграф - акции привилегированные",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "KZIZP",
+      "name": "Красногорский завод им. С.А. Зверева - привилегированные акции",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "otc_ncc"
+    },
+    {
+      "ticker": "LIFE",
+      "name": "Фармсинтез",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "DATA",
+      "name": "Группа Аренадата",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "IRKT",
+      "name": "Яковлев",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "TTLK",
+      "name": "Таттелеком",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SVCB",
+      "name": "Совкомбанк",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "GEMC",
+      "name": "United medical group",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "PHOR",
+      "name": "ФосАгро",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "HNFG",
+      "name": "HENDERSON",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "TATNP",
+      "name": "Татнефть - привилегированные акции",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MAGN",
+      "name": "Магнитогорский металлургический комбинат",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "VTBR",
+      "name": "Банк ВТБ",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "BANEP",
+      "name": "Башнефть - привилегированные акции",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MRKP",
+      "name": "Россети Центр и Приволжье",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "FLOT",
+      "name": "Совкомфлот",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SPBE",
+      "name": "СПБ Биржа",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "SPB_RU_MORNING"
+    },
+    {
+      "ticker": "ABIO",
+      "name": "Артген",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "DVEC",
+      "name": "ДЭК",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "ZAYM",
+      "name": "МФК Займер",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MTSS",
+      "name": "МТС",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "OZPH",
+      "name": "Озон Фармацевтика",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "FEES",
+      "name": "ФСК Россети",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "OBNE",
+      "name": "Обьнефтегазгеология - ао",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "otc_ncc"
+    },
+    {
+      "ticker": "PMSB",
+      "name": "Пермэнергосбыт",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "RBCM",
+      "name": "РБК",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MSRS",
+      "name": "Россети Московский регион",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "IRAO",
+      "name": "Интер РАО ЕЭС",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "NSVZ",
+      "name": "Наука-Связь",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "BLNG",
+      "name": "Белон",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "X5",
+      "name": "Корпоративный Центр Икс 5",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "NVTK",
+      "name": "НОВАТЭК",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "UNKL",
+      "name": "ЮУНК",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "AQUA",
+      "name": "ИНАРКТИКА",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "ROLO",
+      "name": "Русолово",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "OGKB",
+      "name": "Вторая генерирующая компания оптового рынка электроэнергии",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "CBOM",
+      "name": "МКБ",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "ABRD",
+      "name": "АбрауДюрсо",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "TRMK",
+      "name": "Трубная Металлургическая Компания",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SOFL",
+      "name": "Софтлайн",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "KRKNP",
+      "name": "Саратовский НПЗ - акции привилегированные",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "CHMF",
+      "name": "Северсталь",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "NKNCP",
+      "name": "Нижнекамскнефтехим (привилегированные)",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "OBNEP",
+      "name": "Обьнефтегазгеология - привилегированные акции",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "otc_ncc"
+    },
+    {
+      "ticker": "LSRG",
+      "name": "Группа ЛСР",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "RTKMP",
+      "name": "Ростелеком - Привилегированные акции",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MGTSP",
+      "name": "МГТС - акции привилегированные",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "KLVZ",
+      "name": "Кристалл",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "NTZL",
+      "name": "НИТЕЛ",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "otc_ncc"
+    },
+    {
+      "ticker": "YDEX",
+      "name": "Яндекс",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "BANE",
+      "name": "Башнефть",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "AFLT",
+      "name": "Аэрофлот",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "ELMT",
+      "name": "Элемент",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "SPB_RU_MORNING"
+    },
+    {
+      "ticker": "MVID",
+      "name": "М.Видео",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "PMSBP",
+      "name": "Пермэнергосбыт - акции привилегированные",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MSTT",
+      "name": "Мостотрест",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MTLR",
+      "name": "Мечел",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "IVAT",
+      "name": "IVA Technologies",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "AKRN",
+      "name": "Акрон",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MDMG",
+      "name": "Мать и дитя",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SBERP",
+      "name": "Сбер Банк - привилегированные акции",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "LENT",
+      "name": "Лента",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "ASTR",
+      "name": "Группа Астра",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "RKKE",
+      "name": "РКК Энергия им.С.П.Королева",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MRKC",
+      "name": "Россети Центр",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "KAZT",
+      "name": "КуйбышевАзот",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "YAKG",
+      "name": "ЯТЭК",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "TGKB",
+      "name": "ТГК-2",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "RNFT",
+      "name": "РуссНефть",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "QIWI",
+      "name": "QIWI",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "MOEX_DEALER_WEEKEND"
+    },
+    {
+      "ticker": "GTRK",
+      "name": "ГТМ",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "NLMK",
+      "name": "НЛМК",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "BELU",
+      "name": "Novabev Group",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "FESH",
+      "name": "ДВМП",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SGZH",
+      "name": "Сегежа",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "LSNGP",
+      "name": "Россети Ленэнерго - акции привилегированные",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MRKS",
+      "name": "Россети Сибирь",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "LKOH",
+      "name": "ЛУКОЙЛ",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "DELI",
+      "name": "Делимобиль",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MGKL",
+      "name": "МГКЛ",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "UDMN",
+      "name": "Удмуртнефть",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "otc_ncc"
+    },
+    {
+      "ticker": "NMTP",
+      "name": "НМТП",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "TGKA",
+      "name": "ТГК-1",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MTLRP",
+      "name": "Мечел - Привилегированные акции",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MRKY",
+      "name": "Россети Юг",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    }
+  ],
+  "us_tickers": [],
+  "all_tickers": [
+    {
+      "ticker": "VSMO",
+      "name": "ВСМПО-АВИСМА",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "UNAC",
+      "name": "Объединенная авиастроительная корпорация",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "CNRU",
+      "name": "Циан",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "VKCO",
+      "name": "ВК",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MGNT",
+      "name": "Магнит",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "KZIZ",
+      "name": "Красногорский завод им. С.А. Зверева - ао",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "otc_ncc"
+    },
+    {
+      "ticker": "KZOSP",
+      "name": "Казаньоргсинтез - акции привилегированные",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "WUSH",
+      "name": "Whoosh",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "UGLD",
+      "name": "Южуралзолото ГК",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_morning_weekend"
+    },
+    {
+      "ticker": "LNZL",
+      "name": "Лензолото",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SELG",
+      "name": "Селигдар",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SLAV",
+      "name": "Славнефть",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "otc_ncc"
+    },
+    {
+      "ticker": "PRFN",
+      "name": "ЧЗПСН-Профнастил",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "CARM",
+      "name": "КарМани",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "RUAL",
+      "name": "РУСАЛ",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "NKHP",
+      "name": "НКХП",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "TGKJ",
+      "name": "Форвард Энерго",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "otc_ncc"
+    },
+    {
+      "ticker": "ALRS",
+      "name": "АЛРОСА",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "DIAS",
+      "name": "Диасофт",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "TATN",
+      "name": "Татнефть",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "RTKM",
+      "name": "Ростелеком",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "PRMD",
+      "name": "Промомед",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "TGKN",
+      "name": "ТГК-14",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "TRNFP",
+      "name": "Транснефть - привилегированные акции",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "ZILLP",
+      "name": "ЗИЛ - акции привилегированные",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "otc_ncc"
+    },
+    {
+      "ticker": "RAGR",
+      "name": "РусАгро",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "GCHE",
+      "name": "Группа Черкизово",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "UWGN",
+      "name": "ОВК",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SNGSP",
+      "name": "Сургутнефтегаз - привилегированные акции",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "FIXR",
+      "name": "Публичное акционерное общество \"Фикс Прайс\"",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "NKNC",
+      "name": "Нижнекамскнефтехим",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "VRSB",
+      "name": "ТНС энерго Воронеж",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MBNK",
+      "name": "МТС-Банк",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MOEX",
+      "name": "Московская Биржа",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "NOMP",
+      "name": "Новошип - ао",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "otc_ncc"
+    },
+    {
+      "ticker": "KAZTP",
+      "name": "КуйбышевАзот - Акции привилегированные",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SNGS",
+      "name": "Сургутнефтегаз",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "TGKBP",
+      "name": "ТГК-2 - акции привилегированные",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "PIKK",
+      "name": "ПИК",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "ROSN",
+      "name": "Роснефть",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "EUTR",
+      "name": "ЕвроТранс",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MRKU",
+      "name": "Россети Урал",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "ENPG",
+      "name": "Эн+",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "T",
+      "name": "Т-Технологии",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "UFOSP",
+      "name": "Уфаоргсинтез - привилегированные акции",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "otc_ncc"
+    },
+    {
+      "ticker": "MRKV",
+      "name": "Россети Волга",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "CNTL",
+      "name": "Центральный Телеграф",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "VSEH",
+      "name": "ВИ.РУ",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SVAV",
+      "name": "СОЛЛЕРС",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "KMAZ",
+      "name": "КАМАЗ",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "KZOS",
+      "name": "Казаньоргсинтез - акции обыкновенные",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "ELFV",
+      "name": "ЭЛ5-Энерго",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "HEAD",
+      "name": "Хэдхантер",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "ETLN",
+      "name": "МКПАО Эталон Груп",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SMLT",
+      "name": "ГК Самолет",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SBER",
+      "name": "Сбер Банк",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "GECO",
+      "name": "Генетико",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "GAZP",
+      "name": "Газпром",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "BSPB",
+      "name": "Банк Санкт-Петербург",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "LSNG",
+      "name": "Россети Ленэнерго",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "RENI",
+      "name": "Ренессанс Страхование",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "POSI",
+      "name": "Группа Позитив",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "KROT",
+      "name": "Красный Октябрь",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SIBN",
+      "name": "Газпром нефть",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "KLSB",
+      "name": "Калужская сбытовая компания",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "CHMK",
+      "name": "ЧМК",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MRKZ",
+      "name": "Россети Северо-Запад",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "APTK",
+      "name": "Аптечная сеть 36,6",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "HYDR",
+      "name": "РусГидро",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "LNZLP",
+      "name": "Лензолото - привилегированные акции",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SFIN",
+      "name": "ЭсЭфАй",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "RASP",
+      "name": "Распадская",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "NOMPP",
+      "name": "Новошип - привилегированные акции",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "otc_ncc"
+    },
+    {
+      "ticker": "GMKN",
+      "name": "Норильский никель",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "UPRO",
+      "name": "Юнипро",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MSNG",
+      "name": "Мосэнерго",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "AFKS",
+      "name": "АФК Система",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "PLZL",
+      "name": "Полюс",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "LEAS",
+      "name": "Европлан",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "CNTLP",
+      "name": "Центральный Телеграф - акции привилегированные",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "KZIZP",
+      "name": "Красногорский завод им. С.А. Зверева - привилегированные акции",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "otc_ncc"
+    },
+    {
+      "ticker": "LIFE",
+      "name": "Фармсинтез",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "DATA",
+      "name": "Группа Аренадата",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "IRKT",
+      "name": "Яковлев",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "TTLK",
+      "name": "Таттелеком",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SVCB",
+      "name": "Совкомбанк",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "GEMC",
+      "name": "United medical group",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "PHOR",
+      "name": "ФосАгро",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "HNFG",
+      "name": "HENDERSON",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "TATNP",
+      "name": "Татнефть - привилегированные акции",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MAGN",
+      "name": "Магнитогорский металлургический комбинат",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "VTBR",
+      "name": "Банк ВТБ",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "BANEP",
+      "name": "Башнефть - привилегированные акции",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MRKP",
+      "name": "Россети Центр и Приволжье",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "FLOT",
+      "name": "Совкомфлот",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SPBE",
+      "name": "СПБ Биржа",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "SPB_RU_MORNING"
+    },
+    {
+      "ticker": "ABIO",
+      "name": "Артген",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "DVEC",
+      "name": "ДЭК",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "ZAYM",
+      "name": "МФК Займер",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MTSS",
+      "name": "МТС",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "OZPH",
+      "name": "Озон Фармацевтика",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "FEES",
+      "name": "ФСК Россети",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "OBNE",
+      "name": "Обьнефтегазгеология - ао",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "otc_ncc"
+    },
+    {
+      "ticker": "PMSB",
+      "name": "Пермэнергосбыт",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "RBCM",
+      "name": "РБК",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MSRS",
+      "name": "Россети Московский регион",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "IRAO",
+      "name": "Интер РАО ЕЭС",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "NSVZ",
+      "name": "Наука-Связь",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "BLNG",
+      "name": "Белон",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "X5",
+      "name": "Корпоративный Центр Икс 5",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "NVTK",
+      "name": "НОВАТЭК",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "UNKL",
+      "name": "ЮУНК",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "AQUA",
+      "name": "ИНАРКТИКА",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "ROLO",
+      "name": "Русолово",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "OGKB",
+      "name": "Вторая генерирующая компания оптового рынка электроэнергии",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "CBOM",
+      "name": "МКБ",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "ABRD",
+      "name": "АбрауДюрсо",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "TRMK",
+      "name": "Трубная Металлургическая Компания",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SOFL",
+      "name": "Софтлайн",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "KRKNP",
+      "name": "Саратовский НПЗ - акции привилегированные",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "CHMF",
+      "name": "Северсталь",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "NKNCP",
+      "name": "Нижнекамскнефтехим (привилегированные)",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "OBNEP",
+      "name": "Обьнефтегазгеология - привилегированные акции",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "otc_ncc"
+    },
+    {
+      "ticker": "LSRG",
+      "name": "Группа ЛСР",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "RTKMP",
+      "name": "Ростелеком - Привилегированные акции",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MGTSP",
+      "name": "МГТС - акции привилегированные",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "KLVZ",
+      "name": "Кристалл",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "NTZL",
+      "name": "НИТЕЛ",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "otc_ncc"
+    },
+    {
+      "ticker": "YDEX",
+      "name": "Яндекс",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "BANE",
+      "name": "Башнефть",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "AFLT",
+      "name": "Аэрофлот",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "ELMT",
+      "name": "Элемент",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "SPB_RU_MORNING"
+    },
+    {
+      "ticker": "MVID",
+      "name": "М.Видео",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "PMSBP",
+      "name": "Пермэнергосбыт - акции привилегированные",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MSTT",
+      "name": "Мостотрест",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MTLR",
+      "name": "Мечел",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "IVAT",
+      "name": "IVA Technologies",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "AKRN",
+      "name": "Акрон",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MDMG",
+      "name": "Мать и дитя",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SBERP",
+      "name": "Сбер Банк - привилегированные акции",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "LENT",
+      "name": "Лента",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "ASTR",
+      "name": "Группа Астра",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "RKKE",
+      "name": "РКК Энергия им.С.П.Королева",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MRKC",
+      "name": "Россети Центр",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "KAZT",
+      "name": "КуйбышевАзот",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "YAKG",
+      "name": "ЯТЭК",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "TGKB",
+      "name": "ТГК-2",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "RNFT",
+      "name": "РуссНефть",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "QIWI",
+      "name": "QIWI",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "MOEX_DEALER_WEEKEND"
+    },
+    {
+      "ticker": "GTRK",
+      "name": "ГТМ",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "NLMK",
+      "name": "НЛМК",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "BELU",
+      "name": "Novabev Group",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "FESH",
+      "name": "ДВМП",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "SGZH",
+      "name": "Сегежа",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "LSNGP",
+      "name": "Россети Ленэнерго - акции привилегированные",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MRKS",
+      "name": "Россети Сибирь",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "LKOH",
+      "name": "ЛУКОЙЛ",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "DELI",
+      "name": "Делимобиль",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MGKL",
+      "name": "МГКЛ",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "UDMN",
+      "name": "Удмуртнефть",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "otc_ncc"
+    },
+    {
+      "ticker": "NMTP",
+      "name": "НМТП",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "TGKA",
+      "name": "ТГК-1",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MTLRP",
+      "name": "Мечел - Привилегированные акции",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    },
+    {
+      "ticker": "MRKY",
+      "name": "Россети Юг",
+      "currency": "rub",
+      "country": "Российская Федерация",
+      "exchange": "moex_mrng_evng_e_wknd_dlr"
+    }
+  ]
+}

@@ -1034,6 +1034,13 @@ class TradingEngine:
             Текущая цена
         """
         try:
+            # В бэктесте используем исторические цены из портфеля
+            if self.portfolio_manager and hasattr(self.portfolio_manager, '_backtest_prices'):
+                backtest_prices = getattr(self.portfolio_manager, '_backtest_prices', {})
+                if symbol in backtest_prices:
+                    return backtest_prices[symbol]
+            
+            # Обычная логика для реальной торговли
             if self.data_provider:
                 realtime_data = await self.data_provider.get_latest_data(symbol)
                 return realtime_data.get('realtime', {}).get('price', 0.0)

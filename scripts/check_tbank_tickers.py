@@ -5,6 +5,8 @@
 import asyncio
 import os
 import sys
+import json
+from datetime import datetime
 
 # Установка кодировки для Windows
 if sys.platform == 'win32':
@@ -129,6 +131,35 @@ async def check_available_tickers():
                 if len(us_tickers) > 20:
                     print(f"   ... и еще {len(us_tickers) - 20}")
                 print()
+            
+            # Сохранение полного списка в файл
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_file = f"tbank_tickers_{timestamp}.json"
+            
+            # Подготовка данных для сохранения
+            output_data = {
+                "timestamp": timestamp,
+                "total_count": len(available_tickers),
+                "russian_count": len(russian_tickers),
+                "us_count": len(us_tickers),
+                "russian_tickers": russian_tickers,
+                "us_tickers": us_tickers,
+                "all_tickers": available_tickers
+            }
+            
+            try:
+                with open(output_file, 'w', encoding='utf-8') as f:
+                    json.dump(output_data, f, ensure_ascii=False, indent=2)
+                
+                print(f"💾 Полный список тикеров сохранен в файл: {output_file}")
+                print(f"   • Всего инструментов: {len(available_tickers)}")
+                print(f"   • Российские: {len(russian_tickers)}")
+                print(f"   • Американские: {len(us_tickers)}")
+                print()
+                
+            except Exception as e:
+                logger.error(f"Ошибка сохранения файла: {e}")
+                print(f"❌ Ошибка сохранения файла: {e}")
             
             # Рекомендация
             print("💡 Рекомендация:")

@@ -1,0 +1,162 @@
+# -*- coding: utf-8 -*-
+# Конфигурация для бэктестинга
+# Оптимизирована для исторического тестирования торговых стратегий
+
+# Основные настройки системы
+system:
+  mode: "backtest"  # Режим бэктестинга
+  log_level: "INFO"
+  timezone: "Europe/Moscow"
+  
+# Настройки данных
+data:
+  provider: "mock"  # Используем моковые данные для бэктеста
+  symbols:
+    - "SBER"
+    - "GAZP" 
+    - "LKOH"
+    - "NVTK"
+    - "GMKN"
+    - "MGNT"
+    - "MOEX"
+    - "RTKM"
+    - "AFLT"
+    - "MTLR"
+  
+  # Параметры для генерации исторических данных
+  historical_data:
+    base_price: 100.0
+    volatility: 0.02  # 2% волатильность
+    trend_strength: 0.001  # Слабый тренд
+    noise_level: 0.01  # 1% шум
+
+# Настройки нейросетей для бэктеста
+neural_networks:
+  enabled: true
+  models:
+    - name: "simple_generator"
+      type: "simple_signal_generator"
+      config:
+        signal_probability: 0.4  # 40% вероятность сигнала
+        buy_probability: 0.6     # 60% покупок от всех сигналов
+        confidence_range: [0.7, 0.95]  # Диапазон уверенности
+        min_confidence: 0.6      # Минимальная уверенность
+
+# Настройки торгового движка для бэктеста
+trading:
+  broker: "paper"  # Бумажная торговля
+  mode: "backtest"
+  
+  # Отключенные кулдауны для бэктеста
+  signal_cooldowns:
+    buy_cooldown: 0      # Отключен
+    sell_cooldown: 0     # Отключен
+    hold_cooldown: 0     # Отключен
+  
+  # Настройки сигналов
+  signal_threshold: 0.6  # Порог уверенности
+  max_signals_per_day: 100  # Максимум сигналов в день
+  
+  # Настройки позиций
+  position_size: 0.02  # 2% портфеля на позицию (исправлено с 10%)
+  
+  # Ограничения размера позиций
+  position_limits:
+    max_position_size: 0.05  # Максимум 5% портфеля в одной позиции
+    min_position_size: 0.01  # Минимум 1% портфеля
+    max_total_exposure: 0.8  # Максимум 80% в инвестициях
+    position_size_check: true  # Включить проверки размера позиций
+  
+  # Настройки исполнения
+  execution:
+    slippage: 0.001      # 0.1% проскальзывание
+    commission: 0.0005   # 0.05% комиссия
+    min_trade_value: 1000  # Минимальная сумма сделки
+  
+  # Фильтрация сигналов
+  signal_filtering:
+    filter_cooldown_signals: false  # Отключено для бэктеста
+    filter_low_confidence: true
+    filter_duplicate_signals: true
+
+# Настройки портфеля для бэктеста
+portfolio:
+  initial_capital: 1000000  # 1 млн рублей (снижено с 10 млн для реалистичности)
+  currency: "RUB"
+  
+  # Отключение кулдаунов для бэктеста
+  disable_cooldowns: true   # Полностью отключить кулдауны
+  
+  # Лимиты риска
+  risk_management:
+    max_drawdown: 0.2      # Максимальная просадка 20%
+    max_position_concentration: 0.15  # Максимум 15% в одном инструменте
+    max_sector_concentration: 0.3     # Максимум 30% в одном секторе
+  
+  # Настройки для бэктеста
+  backtest_settings:
+    rebalance_frequency: "daily"  # Ежедневная ребалансировка
+    transaction_costs: true        # Учитывать транзакционные издержки
+    market_impact: true           # Учитывать влияние на рынок
+
+# Настройки бэктестинга
+backtest:
+  # Периоды
+  default_period:
+    start_date: "2023-01-01"
+    end_date: "2024-12-31"
+    train_period_days: 180  # 6 месяцев обучения
+  
+  # Параметры генерации данных
+  data_generation:
+    use_realistic_patterns: true  # Использовать реалистичные паттерны
+    include_weekends: false        # Исключить выходные
+    include_holidays: false        # Исключить праздники
+    market_hours: "09:30-18:30"   # Часы работы рынка
+  
+  # Настройки производительности
+  performance:
+    parallel_processing: true     # Параллельная обработка
+    batch_size: 100              # Размер батча для обработки
+    memory_limit: "2GB"          # Лимит памяти
+  
+  # Настройки отчетности
+  reporting:
+    save_detailed_logs: true     # Сохранять детальные логи
+    generate_charts: true        # Генерировать графики
+    export_format: ["csv", "json"]  # Форматы экспорта
+    metrics:
+      - "total_return"
+      - "sharpe_ratio"
+      - "max_drawdown"
+      - "volatility"
+      - "win_rate"
+      - "profit_factor"
+
+# Настройки логирования для бэктеста
+logging:
+  level: "INFO"
+  file: "logs/backtest.log"
+  max_size: "10MB"
+  backup_count: 5
+  format: "%(asctime)s | %(levelname)s | %(name)s:%(funcName)s:%(lineno)d - %(message)s"
+  
+  # Специальные логи для бэктеста
+  backtest_logs:
+    trades: "logs/backtest_trades.log"
+    signals: "logs/backtest_signals.log"
+    portfolio: "logs/backtest_portfolio.log"
+    performance: "logs/backtest_performance.log"
+
+# Настройки безопасности
+security:
+  api_keys:
+    # Для бэктеста API ключи не нужны
+    deepseek_api_key: ""
+    tbank_api_key: ""
+  
+  # Настройки доступа
+  access_control:
+    allow_real_trading: false    # Запретить реальную торговлю
+    allow_api_calls: false       # Запретить API вызовы
+    sandbox_mode: true           # Режим песочницы

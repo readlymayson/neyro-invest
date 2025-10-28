@@ -144,6 +144,11 @@ class PortfolioManager:
         Загрузка состояния кулдаунов из файла
         """
         try:
+            # Проверяем, отключены ли кулдауны для бэктеста
+            if hasattr(self, 'config') and self.config.get('disable_cooldowns', False):
+                logger.info("Кулдауны отключены для бэктеста")
+                return
+            
             cooldown_file = "data/cooldown_state.json"
             if os.path.exists(cooldown_file):
                 with open(cooldown_file, 'r', encoding='utf-8') as f:
@@ -199,6 +204,11 @@ class PortfolioManager:
             symbol: Символ инструмента
             signal_type: Тип сигнала (BUY, SELL, HOLD)
         """
+        # Проверяем, отключены ли кулдауны для бэктеста
+        if hasattr(self, 'config') and self.config.get('disable_cooldowns', False):
+            logger.debug(f"Кулдауны отключены для бэктеста, пропускаем установку кулдауна для {symbol}")
+            return
+        
         current_time = datetime.now()
         
         # Устанавливаем время последней сделки
@@ -339,6 +349,11 @@ class PortfolioManager:
             Текущая цена
         """
         try:
+            # Проверяем, есть ли исторические цены для бэктеста
+            if hasattr(self, '_backtest_prices') and self._backtest_prices:
+                if symbol in self._backtest_prices:
+                    return self._backtest_prices[symbol]
+            
             # Получение цены из провайдера данных
             if self.data_provider:
                 realtime_data = await self.data_provider.get_latest_data(symbol)
@@ -361,6 +376,16 @@ class PortfolioManager:
             if symbol in self.positions:
                 return self.positions[symbol].current_price
             return 100.0
+    
+    def set_backtest_prices(self, prices: Dict[str, float]):
+        """
+        Установка исторических цен для бэктестинга
+        
+        Args:
+            prices: Словарь с ценами по символам
+        """
+        self._backtest_prices = prices
+        logger.debug(f"Установлены исторические цены для бэктеста: {len(prices)} символов")
     
     def set_data_provider(self, data_provider):
         """
