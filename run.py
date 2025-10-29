@@ -149,13 +149,40 @@ async def run_training_mode(config_path: str):
         # Обучение моделей
         logger.info("Начало обучения нейросетей...")
         historical_data = await system.data_provider.get_latest_data()
-        await system.network_manager.train_models(historical_data)
+        
+        # Проверяем, нужно ли использовать новостные данные при обучении
+        news_config = system.config.get('data', {}).get('news', {})
+        include_news_in_training = news_config.get('include_news_in_training', False)
+        
+        if include_news_in_training:
+            # При обучении используются новостные данные за ограниченный период (30 дней)
+            news_data = historical_data.get('news', {})
+            if news_data:
+                logger.info(f"Новостные данные включены в обучение для {len(news_data)} символов (ограниченный период)")
+            else:
+                logger.info("Новостные данные не доступны для обучения")
+            await system.network_manager.train_models(historical_data, news_data=news_data)
+        else:
+            # При обучении новостные данные НЕ используются - только исторические данные за 1 год
+            logger.info("Обучение на исторических данных без новостей (новости используются только при анализе)")
+            await system.network_manager.train_models(historical_data)
         
         logger.info("✅ Обучение завершено успешно!")
         
         # Тестирование моделей
         logger.info("Тестирование обученных моделей...")
-        test_results = await system.network_manager.analyze(historical_data)
+        
+        # При анализе используются новостные данные за 2 недели для актуальности выводов
+        news_data = historical_data.get('news', {})
+        if news_data:
+            logger.info(f"Новостные данные включены в анализ для {len(news_data)} символов (сводки за 2 недели)")
+        else:
+            logger.info("Новостные данные не доступны для анализа")
+        
+        test_results = await system.network_manager.analyze(historical_data, system.portfolio_manager, news_data=news_data)
+        
+        # Экспорт сигналов после тестирования
+        await system._export_signals_data()
         
         logger.info("Результаты тестирования:")
         ensemble_pred = test_results.get('ensemble_prediction', {})

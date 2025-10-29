@@ -234,24 +234,42 @@ class PortfolioFeatureExtractor:
     def _extract_temporal_features(self, portfolio_manager) -> Dict[str, int]:
         """Извлечение временных признаков"""
         try:
+            from datetime import timezone
+            
+            # Получаем текущее время с timezone
+            now = datetime.now(timezone.utc)
+            
             # Возраст портфеля (дни с первой транзакции)
             transactions = portfolio_manager.transactions
             if transactions:
                 first_transaction = min(t.timestamp for t in transactions)
-                portfolio_age_days = (datetime.now() - first_transaction).days
+                # Приводим к одинаковому типу datetime
+                if first_transaction.tzinfo is None:
+                    first_transaction = first_transaction.replace(tzinfo=timezone.utc)
+                portfolio_age_days = (now - first_transaction).days
             else:
                 portfolio_age_days = 0
             
             # Дни с последней транзакции
             if transactions:
                 last_transaction = max(t.timestamp for t in transactions)
-                days_since_last_trade = (datetime.now() - last_transaction).days
+                # Приводим к одинаковому типу datetime
+                if last_transaction.tzinfo is None:
+                    last_transaction = last_transaction.replace(tzinfo=timezone.utc)
+                days_since_last_trade = (now - last_transaction).days
             else:
                 days_since_last_trade = 999  # Большое число если нет транзакций
             
             # Количество недавних транзакций
-            recent_cutoff = datetime.now() - timedelta(days=self.lookback_days)
-            recent_trades_count = sum(1 for t in transactions if t.timestamp >= recent_cutoff)
+            recent_cutoff = now - timedelta(days=self.lookback_days)
+            recent_trades_count = 0
+            for t in transactions:
+                # Приводим к одинаковому типу datetime
+                t_timestamp = t.timestamp
+                if t_timestamp.tzinfo is None:
+                    t_timestamp = t_timestamp.replace(tzinfo=timezone.utc)
+                if t_timestamp >= recent_cutoff:
+                    recent_trades_count += 1
             
             return {
                 'days_since_last_trade': days_since_last_trade,

@@ -18,20 +18,20 @@ data:
     - ROSN   # Роснефть
     - GMKN   # ГМК Норникель
     - VKCO   # ВК
-    - MGNT   # Магнит
-    - TATN   # Татнефть
-    - SNGS   # Сургутнефтегаз
-    - MOEX   # Московская Биржа
-    - MSNG   # Мосэнерго
-    - AFKS   # АФК Система
-    - PLZL   # Полюс
-    - SMLT   # ГК Самолет
-    - HEAD   # Хэдхантер
-    - ETLN   # МКПАО Эталон Груп
-    - KMAZ   # КАМАЗ
-    - BSPB   # Банк Санкт-Петербург
-    - POSI   # Группа Позитив
-    - GECO   # Генетико
+    # - MGNT   # Магнит
+    # - TATN   # Татнефть
+    # - SNGS   # Сургутнефтегаз
+    # - MOEX   # Московская Биржа
+    # - MSNG   # Мосэнерго
+    # - AFKS   # АФК Система
+    # - PLZL   # Полюс
+    # - SMLT   # ГК Самолет
+    # - HEAD   # Хэдхантер
+    # - ETLN   # МКПАО Эталон Груп
+    # - KMAZ   # КАМАЗ
+    # - BSPB   # Банк Санкт-Петербург
+    # - POSI   # Группа Позитив
+    # - GECO   # Генетико
 
   
   # T-Bank API настройки
@@ -62,6 +62,26 @@ data:
     offline_mode: false  # Режим офлайн (использовать кэш при недоступности API)
     auto_detect_account: true  # Автоматически определять счет
 
+  # Настройки новостных данных
+  news:
+    enabled: true  # Включить новостные данные
+    providers:
+      - type: "mock"  # mock, alphavantage, newsapi
+        enabled: true
+        api_key: null  # Будет загружен из переменной окружения
+      - type: "newsapi"
+        enabled: false  # Отключен по умолчанию
+        api_key: null  # Будет загружен из переменной окружения NEWS_API_KEY
+      - type: "alphavantage"
+        enabled: false  # Отключен по умолчанию
+        api_key: null  # Будет загружен из переменной окружения ALPHA_VANTAGE_API_KEY
+    cache_ttl: 300  # Время жизни кэша новостей (секунды)
+    days_back: 14  # Количество дней назад для получения новостей (только для анализа)
+    sentiment_analysis: true  # Включить анализ тональности
+    include_news_in_training: true  # Включить новости в обучение (с ограничениями)
+    include_news_in_analysis: true  # Включать новости в анализ (сводки за 2 недели)
+    training_news_days: 180  # Максимум 180 дней новостей для обучения (не весь год)
+
 # Настройки нейросетей
 neural_networks:
   models:
@@ -73,13 +93,13 @@ neural_networks:
       learning_rate: 0.1
       subsample: 0.8
       colsample_bytree: 0.8
-        random_state: 42
-        # Расширенные параметры для работы с большим количеством признаков
-        reg_alpha: 0.1
-        reg_lambda: 1.0
-        gamma: 0.1
-        min_child_weight: 3
-        # Пороги для классификации
+      random_state: 42
+      # Расширенные параметры для работы с большим количеством признаков
+      reg_alpha: 0.1
+      reg_lambda: 1.0
+      gamma: 0.1
+      min_child_weight: 3
+      # Пороги для классификации
       buy_threshold: 0.05
       sell_threshold: -0.05
       

@@ -104,13 +104,14 @@ class DeepSeekNetwork(BaseNeuralNetwork):
             logger.error(f"Ошибка тестирования DeepSeek API: {e}")
             raise
     
-    async def train(self, data: pd.DataFrame, target: str = 'Close') -> Dict[str, float]:
+    async def train(self, data: pd.DataFrame, target: str = 'Close', news_data: Dict[str, Any] = None) -> Dict[str, float]:
         """
         "Обучение" DeepSeek модели (анализ исторических паттернов)
         
         Args:
             data: Данные для анализа
             target: Целевая переменная
+            news_data: Новостные данные для анализа
             
         Returns:
             Метрики анализа
@@ -118,8 +119,8 @@ class DeepSeekNetwork(BaseNeuralNetwork):
         try:
             logger.info(f"Анализ исторических данных DeepSeek моделью {self.name}")
             
-            # Подготовка данных для анализа
-            analysis_data = self._prepare_data_for_analysis(data, target)
+            # Подготовка данных для анализа с новостными данными
+            analysis_data = self._prepare_data_for_analysis(data, target, news_data=news_data)
             
             # Анализ паттернов через API
             patterns = await self._analyze_historical_patterns(analysis_data)
@@ -138,7 +139,7 @@ class DeepSeekNetwork(BaseNeuralNetwork):
             logger.error(f"Ошибка анализа DeepSeek моделью {self.name}: {e}")
             raise
     
-    def _prepare_data_for_analysis(self, data: pd.DataFrame, target: str, portfolio_manager=None, symbol: str = None) -> Dict[str, Any]:
+    def _prepare_data_for_analysis(self, data: pd.DataFrame, target: str, portfolio_manager=None, symbol: str = None, news_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Подготовка данных для анализа DeepSeek
         
@@ -147,6 +148,7 @@ class DeepSeekNetwork(BaseNeuralNetwork):
             target: Целевая переменная
             portfolio_manager: Менеджер портфеля для извлечения портфельных признаков
             symbol: Символ для анализа портфельных признаков
+            news_data: Новостные данные для анализа
             
         Returns:
             Подготовленные данные для анализа
@@ -204,6 +206,40 @@ class DeepSeekNetwork(BaseNeuralNetwork):
                     logger.warning(f"Ошибка добавления портфельных данных в DeepSeek: {e}")
                     stats['portfolio_stats'] = {}
                     stats['symbol_portfolio_stats'] = {}
+            
+            # Добавление новостных данных
+            if news_data and symbol and symbol in news_data:
+                symbol_news = news_data[symbol]
+                stats['news_stats'] = {
+                    'avg_sentiment': symbol_news.get('avg_sentiment', 0.0),
+                    'sentiment_confidence': symbol_news.get('sentiment_confidence', 0.0),
+                    'total_news': symbol_news.get('total_news', 0),
+                    'positive_news': symbol_news.get('positive_news', 0),
+                    'negative_news': symbol_news.get('negative_news', 0),
+                    'neutral_news': symbol_news.get('neutral_news', 0),
+                    'recent_trend': symbol_news.get('recent_trend', 'neutral'),
+                    'news_summary': symbol_news.get('news_summary', ''),
+                    'last_news_date': symbol_news.get('last_news_date', '')
+                }
+                
+                # Добавление последних новостей для контекста
+                if 'news_list' in symbol_news and symbol_news['news_list']:
+                    stats['recent_news'] = symbol_news['news_list'][:3]  # Последние 3 новости
+                
+                logger.debug(f"Добавлены новостные данные для {symbol} в DeepSeek анализ")
+            else:
+                stats['news_stats'] = {
+                    'avg_sentiment': 0.0,
+                    'sentiment_confidence': 0.0,
+                    'total_news': 0,
+                    'positive_news': 0,
+                    'negative_news': 0,
+                    'neutral_news': 0,
+                    'recent_trend': 'neutral',
+                    'news_summary': 'Нет новостных данных',
+                    'last_news_date': ''
+                }
+                stats['recent_news'] = []
             
             return stats
             
@@ -308,6 +344,33 @@ class DeepSeekNetwork(BaseNeuralNetwork):
 {json.dumps(data['technical_indicators'], indent=2)}
 
 ПОСЛЕДНИЕ ЦЕНЫ: {data['time_series']}
+"""
+
+        # Добавление новостных данных в промпт
+        if 'news_stats' in data and data['news_stats']['total_news'] > 0:
+            news_stats = data['news_stats']
+            prompt += f"""
+
+НОВОСТНЫЕ ДАННЫЕ:
+- Общая тональность: {news_stats['avg_sentiment']:.3f}
+- Уверенность в тональности: {news_stats['sentiment_confidence']:.3f}
+- Всего новостей: {news_stats['total_news']}
+- Позитивных новостей: {news_stats['positive_news']}
+- Негативных новостей: {news_stats['negative_news']}
+- Нейтральных новостей: {news_stats['neutral_news']}
+- Новостной тренд: {news_stats['recent_trend']}
+- Сводка новостей: {news_stats['news_summary']}
+"""
+            
+            # Добавление последних новостей
+            if 'recent_news' in data and data['recent_news']:
+                prompt += "\nПОСЛЕДНИЕ НОВОСТИ:\n"
+                for i, news in enumerate(data['recent_news'][:3], 1):
+                    prompt += f"{i}. {news.get('title', 'Без заголовка')}\n"
+                    if news.get('summary'):
+                        prompt += f"   {news['summary'][:100]}...\n"
+
+        prompt += """
 
 Проанализируй эти данные и определи:
 1. Основной тренд (бычий/медвежий/боковой)
@@ -315,9 +378,10 @@ class DeepSeekNetwork(BaseNeuralNetwork):
 3. Торговые сигналы (покупка/продажа/удержание)
 4. Уровни поддержки и сопротивления
 5. Риски и возможности
+6. Влияние новостей на ценовое движение (если есть новостные данные)
 
 Ответь в формате JSON:
-{{
+{
     "trend": "bullish/bearish/sideways",
     "trend_strength": "weak/moderate/strong",
     "signal": "BUY/SELL/HOLD",
@@ -326,8 +390,9 @@ class DeepSeekNetwork(BaseNeuralNetwork):
     "resistance_level": цена,
     "risk_level": "low/medium/high",
     "reasoning": "краткое объяснение",
-    "patterns": ["список найденных паттернов"]
-}}
+    "patterns": ["список найденных паттернов"],
+    "news_impact": "положительное/отрицательное/нейтральное влияние новостей"
+}
 """
         return prompt
     
@@ -490,7 +555,7 @@ class DeepSeekNetwork(BaseNeuralNetwork):
                 'analysis_quality': 0.0
             }
     
-    async def predict(self, data: pd.DataFrame, portfolio_manager=None, symbol: str = None) -> Dict[str, Any]:
+    async def predict(self, data: pd.DataFrame, portfolio_manager=None, symbol: str = None, news_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Предсказание с помощью DeepSeek
         
@@ -498,6 +563,7 @@ class DeepSeekNetwork(BaseNeuralNetwork):
             data: Входные данные
             portfolio_manager: Менеджер портфеля для извлечения портфельных признаков
             symbol: Символ для анализа портфельных признаков
+            news_data: Новостные данные для анализа
             
         Returns:
             Словарь с предсказаниями
@@ -506,8 +572,8 @@ class DeepSeekNetwork(BaseNeuralNetwork):
             if not self.is_trained:
                 raise ValueError(f"Модель {self.name} не проанализирована")
             
-            # Подготовка данных для предсказания с портфельными признаками
-            prediction_data = self._prepare_data_for_analysis(data, 'Close', portfolio_manager, symbol)
+            # Подготовка данных для предсказания с портфельными и новостными признаками
+            prediction_data = self._prepare_data_for_analysis(data, 'Close', portfolio_manager, symbol, news_data)
             
             # Создание промпта для предсказания
             prompt = self._create_prediction_prompt(prediction_data)
@@ -524,6 +590,18 @@ class DeepSeekNetwork(BaseNeuralNetwork):
                 # Расчет силы сигнала
                 signal_strength = self._calculate_signal_strength(prediction)
                 
+                # Добавление новостной информации в результат
+                news_info = {}
+                if news_data and symbol and symbol in news_data:
+                    symbol_news = news_data[symbol]
+                    news_info = {
+                        'news_sentiment': symbol_news.get('avg_sentiment', 0.0),
+                        'news_trend': symbol_news.get('recent_trend', 'neutral'),
+                        'news_count': symbol_news.get('total_news', 0),
+                        'news_summary': symbol_news.get('news_summary', ''),
+                        'news_impact': prediction.get('news_impact', 'neutral')
+                    }
+                
                 # Сохранение результатов
                 self.last_prediction = {
                     'signal': prediction['signal'],
@@ -535,7 +613,8 @@ class DeepSeekNetwork(BaseNeuralNetwork):
                     'resistance_level': prediction.get('resistance_level', 0),
                     'risk_level': prediction.get('risk_level', 'medium'),
                     'reasoning': prediction.get('reasoning', ''),
-                    'patterns': prediction.get('patterns', [])
+                    'patterns': prediction.get('patterns', []),
+                    'news_info': news_info
                 }
                 self.last_prediction_time = datetime.now()
                 
@@ -547,7 +626,8 @@ class DeepSeekNetwork(BaseNeuralNetwork):
                     'signal': 'HOLD',
                     'signal_strength': 0.0,
                     'confidence': 0.0,
-                    'reasoning': 'Не удалось получить предсказание'
+                    'reasoning': 'Не удалось получить предсказание',
+                    'news_info': {}
                 }
                 
         except Exception as e:
@@ -556,7 +636,8 @@ class DeepSeekNetwork(BaseNeuralNetwork):
                 'signal': 'HOLD',
                 'signal_strength': 0.0,
                 'confidence': 0.0,
-                'reasoning': f'Ошибка: {str(e)}'
+                'reasoning': f'Ошибка: {str(e)}',
+                'news_info': {}
             }
     
     def _create_prediction_prompt(self, data: Dict[str, Any]) -> str:

@@ -40,13 +40,14 @@ class BaseNeuralNetwork(ABC):
         pass
     
     @abstractmethod
-    async def train(self, data: pd.DataFrame, target: str = 'Close') -> Dict[str, float]:
+    async def train(self, data: pd.DataFrame, target: str = 'Close', news_data: Dict[str, Any] = None) -> Dict[str, float]:
         """
         Обучение модели
         
         Args:
             data: Данные для обучения
             target: Целевая переменная
+            news_data: Новостные данные для обучения
             
         Returns:
             Метрики обучения
@@ -54,7 +55,7 @@ class BaseNeuralNetwork(ABC):
         pass
     
     @abstractmethod
-    async def predict(self, data: pd.DataFrame, portfolio_manager=None, symbol: str = None) -> Dict[str, Any]:
+    async def predict(self, data: pd.DataFrame, portfolio_manager=None, symbol: str = None, news_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Предсказание на основе данных
         
@@ -62,6 +63,7 @@ class BaseNeuralNetwork(ABC):
             data: Входные данные
             portfolio_manager: Менеджер портфеля для извлечения портфельных признаков
             symbol: Символ для анализа портфельных признаков
+            news_data: Новостные данные для анализа
             
         Returns:
             Словарь с предсказаниями
@@ -78,7 +80,7 @@ class BaseNeuralNetwork(ABC):
         """
         pass
     
-    def prepare_features(self, data: pd.DataFrame, portfolio_manager=None, symbol: str = None) -> pd.DataFrame:
+    def prepare_features(self, data: pd.DataFrame, portfolio_manager=None, symbol: str = None, news_data: Dict[str, Any] = None) -> pd.DataFrame:
         """
         Подготовка признаков для модели
         
@@ -86,6 +88,7 @@ class BaseNeuralNetwork(ABC):
             data: Исходные данные
             portfolio_manager: Менеджер портфеля для извлечения портфельных признаков
             symbol: Символ для анализа портфельных признаков
+            news_data: Новостные данные для добавления признаков
             
         Returns:
             Подготовленные признаки
@@ -101,6 +104,10 @@ class BaseNeuralNetwork(ABC):
         # Добавление портфельных признаков
         if portfolio_manager:
             features = self._add_portfolio_features(features, portfolio_manager, symbol)
+        
+        # Добавление новостных признаков
+        if news_data:
+            features = self._add_news_features(features, news_data, symbol)
         
         # Нормализация данных
         features = self._normalize_features(features)
@@ -223,6 +230,71 @@ class BaseNeuralNetwork(ABC):
             
         except Exception as e:
             logger.warning(f"Ошибка добавления портфельных признаков в базовую модель: {e}")
+        
+        return df
+    
+    def _add_news_features(self, data: pd.DataFrame, news_data: Dict[str, Any], symbol: str = None) -> pd.DataFrame:
+        """
+        Добавление новостных признаков
+        
+        Args:
+            data: Исходные данные
+            news_data: Новостные данные
+            symbol: Символ для анализа
+            
+        Returns:
+            Данные с новостными признаками
+        """
+        df = data.copy()
+        
+        try:
+            if symbol and symbol in news_data:
+                symbol_news = news_data[symbol]
+                
+                # Основные новостные метрики
+                df['news_sentiment'] = symbol_news.get('avg_sentiment', 0.0)
+                df['news_confidence'] = symbol_news.get('sentiment_confidence', 0.0)
+                df['news_count'] = symbol_news.get('total_news', 0)
+                df['positive_news_ratio'] = symbol_news.get('positive_news', 0) / max(symbol_news.get('total_news', 1), 1)
+                df['negative_news_ratio'] = symbol_news.get('negative_news', 0) / max(symbol_news.get('total_news', 1), 1)
+                df['neutral_news_ratio'] = symbol_news.get('neutral_news', 0) / max(symbol_news.get('total_news', 1), 1)
+                
+                # Тренд новостей (1 - позитивный, -1 - негативный, 0 - нейтральный)
+                trend_map = {'positive': 1.0, 'negative': -1.0, 'neutral': 0.0}
+                df['news_trend'] = trend_map.get(symbol_news.get('recent_trend', 'neutral'), 0.0)
+                
+                # Новостная волатильность (на основе количества новостей)
+                df['news_volatility'] = min(symbol_news.get('total_news', 0) / 10.0, 1.0)
+                
+                # Взвешенная тональность (тональность * уверенность)
+                df['weighted_sentiment'] = df['news_sentiment'] * df['news_confidence']
+                
+                logger.debug(f"Добавлены новостные признаки для {symbol}")
+                
+            else:
+                # Если нет новостных данных, заполняем нулями
+                news_columns = [
+                    'news_sentiment', 'news_confidence', 'news_count',
+                    'positive_news_ratio', 'negative_news_ratio', 'neutral_news_ratio',
+                    'news_trend', 'news_volatility', 'weighted_sentiment'
+                ]
+                
+                for col in news_columns:
+                    df[col] = 0.0
+                
+                logger.debug("Новостные данные отсутствуют, добавлены нулевые признаки")
+            
+        except Exception as e:
+            logger.warning(f"Ошибка добавления новостных признаков: {e}")
+            # В случае ошибки добавляем нулевые признаки
+            news_columns = [
+                'news_sentiment', 'news_confidence', 'news_count',
+                'positive_news_ratio', 'negative_news_ratio', 'neutral_news_ratio',
+                'news_trend', 'news_volatility', 'weighted_sentiment'
+            ]
+            
+            for col in news_columns:
+                df[col] = 0.0
         
         return df
     

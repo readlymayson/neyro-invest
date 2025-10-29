@@ -572,6 +572,9 @@ class CommandManager:
                 # Анализ нейросетями
                 predictions = await self.system.network_manager.analyze(market_data)
                 
+                # Экспорт сигналов после анализа
+                await self.system._export_signals_data()
+                
                 print(f"✅ Анализ завершен. Получено {len(predictions)} предсказаний")
                 
                 # Показ результатов анализа
@@ -641,6 +644,9 @@ class CommandManager:
                 
                 # Обновляем предсказания в торговом движке
                 await self.system.trading_engine.update_predictions(predictions)
+                
+                # Экспорт сигналов после обновления предсказаний
+                await self.system._export_signals_data()
                 
                 # Получение торговых сигналов
                 signals = await self.system.trading_engine.get_trading_signals()

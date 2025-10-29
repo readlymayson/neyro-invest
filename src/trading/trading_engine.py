@@ -83,7 +83,8 @@ class TradingSignal:
     
     def __init__(self, symbol: str, signal: str, confidence: float, 
                  price: Optional[float] = None, strength: float = 0.0,
-                 source: str = "neural_network", timestamp: Optional[datetime] = None):
+                 source: str = "neural_network", timestamp: Optional[datetime] = None,
+                 reasoning: str = ""):
         """
         Инициализация торгового сигнала
         
@@ -95,6 +96,7 @@ class TradingSignal:
             strength: Сила сигнала
             source: Источник сигнала
             timestamp: Время сигнала
+            reasoning: Краткая сводка причины решения
         """
         self.symbol = symbol
         self.signal = signal.upper()
@@ -103,6 +105,7 @@ class TradingSignal:
         self.strength = strength
         self.source = source
         self.timestamp = timestamp or datetime.now()
+        self.reasoning = reasoning
         
         logger.debug(f"Получен сигнал {self.signal} для {self.symbol} с уверенностью {confidence:.3f}")
 
@@ -278,6 +281,9 @@ class TradingEngine:
             predictions: Предсказания от нейросетей по всем символам
         """
         try:
+            logger.info(f"🔄 Обновление предсказаний: получено {len(predictions)} ключей")
+            logger.debug(f"📊 Ключи предсказаний: {list(predictions.keys())}")
+            
             # НЕ очищаем старые сигналы - сохраняем историю для кулдауна
             # self.trading_signals.clear()  # Убрано для сохранения кулдауна
             
@@ -330,7 +336,17 @@ class TradingEngine:
                         key = f"ensemble_{symbol}"
                         self.trading_signals[key] = ensemble_signal
             
-            logger.debug(f"Обновлено {len(self.trading_signals)} торговых сигналов")
+            logger.info(f"Обновлено {len(self.trading_signals)} торговых сигналов")
+            
+            # Логирование новых сигналов
+            if 'ensemble_predictions' in predictions:
+                logger.info(f"📊 Обработка {len(predictions['ensemble_predictions'])} ансамблевых предсказаний")
+                for symbol, ensemble_pred in predictions['ensemble_predictions'].items():
+                    signal_type = ensemble_pred.get('signal', 'HOLD')
+                    confidence = ensemble_pred.get('confidence', 0.0)
+                    logger.info(f"📊 {symbol}: {signal_type} (уверенность: {confidence:.3f})")
+            else:
+                logger.warning("⚠️ Нет ансамблевых предсказаний для обработки")
             
         except Exception as e:
             logger.error(f"Ошибка обновления предсказаний: {e}")
@@ -361,18 +377,22 @@ class TradingEngine:
             confidence = prediction.get('confidence', 0.0)
             price = prediction.get('next_price')
             strength = prediction.get('signal_strength', 0.0)
+            reasoning = prediction.get('reasoning', '')
             
             # Проверка минимальной уверенности
             if confidence < self.signal_threshold:
+                logger.debug(f"🚫 {symbol}: Сигнал {signal} отфильтрован (уверенность {confidence:.3f} < {self.signal_threshold})")
                 return None
             
+            logger.info(f"✅ Создан сигнал {signal} для {symbol} (уверенность: {confidence:.3f})")
             return TradingSignal(
                 symbol=symbol,
                 signal=signal,
                 confidence=confidence,
                 price=price,
                 strength=strength,
-                source=source
+                source=source,
+                reasoning=reasoning
             )
             
         except Exception as e:

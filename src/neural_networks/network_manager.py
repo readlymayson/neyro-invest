@@ -88,13 +88,14 @@ class NetworkManager:
         
         logger.info("Все нейросети инициализированы")
     
-    async def train_models(self, data: Dict[str, Any], target: str = 'Close'):
+    async def train_models(self, data: Dict[str, Any], target: str = 'Close', news_data: Dict[str, Any] = None):
         """
         Обучение всех моделей
         
         Args:
             data: Данные для обучения
             target: Целевая переменная
+            news_data: Новостные данные для обучения
         """
         logger.info("Начало обучения всех моделей")
         
@@ -106,7 +107,7 @@ class NetworkManager:
                 continue
             
             # Создание задачи обучения для каждой модели
-            task = asyncio.create_task(self._train_single_model(model, data, target))
+            task = asyncio.create_task(self._train_single_model(model, data, target, news_data))
             training_tasks.append(task)
         
         if training_tasks:
@@ -125,7 +126,7 @@ class NetworkManager:
         # Сохранение обученных моделей
         await self.save_models()
     
-    async def _train_single_model(self, model: BaseNeuralNetwork, data: Dict[str, Any], target: str):
+    async def _train_single_model(self, model: BaseNeuralNetwork, data: Dict[str, Any], target: str, news_data: Dict[str, Any] = None):
         """
         Обучение одной модели
         
@@ -133,6 +134,7 @@ class NetworkManager:
             model: Модель для обучения
             data: Данные для обучения
             target: Целевая переменная
+            news_data: Новостные данные для обучения
         """
         try:
             # Подготовка данных для конкретной модели
@@ -145,7 +147,7 @@ class NetworkManager:
                 
                 if combined_data:
                     combined_df = pd.concat(combined_data, ignore_index=True)
-                    await model.train(combined_df, target)
+                    await model.train(combined_df, target, news_data)
                 else:
                     logger.warning(f"Нет данных для обучения модели {model.name}")
             else:
@@ -155,13 +157,14 @@ class NetworkManager:
             logger.error(f"Ошибка обучения модели {model.name}: {e}")
             raise
     
-    async def analyze(self, data: Dict[str, Any], portfolio_manager=None) -> Dict[str, Any]:
+    async def analyze(self, data: Dict[str, Any], portfolio_manager=None, news_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Анализ данных всеми моделями для всех символов
         
         Args:
             data: Входные данные
             portfolio_manager: Менеджер портфеля для извлечения портфельных признаков
+            news_data: Новостные данные для анализа
             
         Returns:
             Результаты анализа от всех моделей по каждому символу
@@ -179,7 +182,7 @@ class NetworkManager:
                     continue
                 
                 # Создание задачи анализа для каждой модели
-                task = asyncio.create_task(self._analyze_single_model(model, data, portfolio_manager))
+                task = asyncio.create_task(self._analyze_single_model(model, data, portfolio_manager, news_data))
                 analysis_tasks.append((model_name, task))
             
             # Параллельный анализ всеми моделями
@@ -208,6 +211,10 @@ class NetworkManager:
                 # Создаем ансамбль для символа
                 ensemble_predictions[symbol] = self._create_ensemble_prediction(symbol_predictions)
                 ensemble_predictions[symbol]['symbol'] = symbol
+                
+                # Добавление новостной информации в ансамблевое предсказание
+                if news_data and symbol in news_data:
+                    ensemble_predictions[symbol]['news_summary'] = news_data[symbol]
             
             # Сохранение результатов
             self.last_analysis = {
@@ -215,7 +222,8 @@ class NetworkManager:
                 'ensemble_predictions': ensemble_predictions,  # Теперь по символам
                 'symbols_analyzed': list(all_symbols),
                 'models_used': list(predictions_by_model.keys()),
-                'analysis_time': datetime.now().isoformat()
+                'analysis_time': datetime.now().isoformat(),
+                'news_data_included': bool(news_data)
             }
             self.last_analysis_time = datetime.now()
             
@@ -230,10 +238,11 @@ class NetworkManager:
                 'ensemble_predictions': {},
                 'individual_predictions': {},
                 'symbols_analyzed': [],
-                'models_used': []
+                'models_used': [],
+                'news_data_included': False
             }
     
-    async def _analyze_single_model(self, model: BaseNeuralNetwork, data: Dict[str, Any], portfolio_manager=None):
+    async def _analyze_single_model(self, model: BaseNeuralNetwork, data: Dict[str, Any], portfolio_manager=None, news_data: Dict[str, Any] = None):
         """
         Анализ одной модели для всех символов
         
@@ -241,6 +250,7 @@ class NetworkManager:
             model: Модель для анализа
             data: Входные данные
             portfolio_manager: Менеджер портфеля для извлечения портфельных признаков
+            news_data: Новостные данные для анализа
             
         Returns:
             Словарь с результатами анализа по каждому символу
@@ -254,8 +264,8 @@ class NetworkManager:
                 for symbol, symbol_data in data['historical'].items():
                     if not symbol_data.empty:
                         try:
-                            # Передача портфельных данных в модель
-                            prediction = await model.predict(symbol_data, portfolio_manager=portfolio_manager, symbol=symbol)
+                            # Передача портфельных и новостных данных в модель
+                            prediction = await model.predict(symbol_data, portfolio_manager=portfolio_manager, symbol=symbol, news_data=news_data)
                             prediction['symbol'] = symbol  # Добавляем информацию о символе
                             predictions_by_symbol[symbol] = prediction
                             logger.debug(f"Модель {model.name} проанализировала {symbol}: {prediction.get('signal', 'N/A')}")
@@ -265,7 +275,8 @@ class NetworkManager:
                                 'error': str(e),
                                 'confidence': 0.0,
                                 'signal': 'HOLD',
-                                'symbol': symbol
+                                'symbol': symbol,
+                                'news_info': {}
                             }
                 
                 if not predictions_by_symbol:

@@ -61,13 +61,17 @@ class SimpleSignalGenerator:
                     
                     # Проверяем минимальную уверенность
                     if confidence >= self.min_confidence:
+                        # Генерация reasoning для простого генератора
+                        reasoning = self._generate_simple_reasoning(signal_type, confidence, symbol)
+                        
                         signals[symbol] = {
                             'symbol': symbol,
                             'signal': signal_type,
                             'confidence': confidence,
                             'price': data['price'],
                             'timestamp': data.get('timestamp', datetime.now().isoformat()),
-                            'source': 'simple_generator'
+                            'source': 'simple_generator',
+                            'reasoning': reasoning
                         }
                         logger.debug(f"Сгенерирован сигнал {signal_type} для {symbol} с уверенностью {confidence:.2f}")
         
@@ -81,6 +85,44 @@ class SimpleSignalGenerator:
             'models_used': ['simple_generator'],
             'analysis_time': datetime.now().isoformat()
         }
+    
+    def _generate_simple_reasoning(self, signal_type: str, confidence: float, symbol: str) -> str:
+        """
+        Генерация простого reasoning для случайного генератора
+        
+        Args:
+            signal_type: Тип сигнала
+            confidence: Уверенность
+            symbol: Тикер инструмента
+            
+        Returns:
+            Краткая сводка причины решения
+        """
+        try:
+            reasoning_parts = []
+            
+            # Основная причина
+            if signal_type == 'BUY':
+                reasoning_parts.append(f"Случайная рекомендация покупки {symbol}")
+            elif signal_type == 'SELL':
+                reasoning_parts.append(f"Случайная рекомендация продажи {symbol}")
+            
+            # Уверенность
+            if confidence > 0.8:
+                reasoning_parts.append("высокая случайная уверенность")
+            elif confidence > 0.6:
+                reasoning_parts.append("средняя случайная уверенность")
+            else:
+                reasoning_parts.append("низкая случайная уверенность")
+            
+            # Дополнительная информация
+            reasoning_parts.append("основано на случайной генерации для тестирования")
+            
+            return ". ".join(reasoning_parts) + "."
+            
+        except Exception as e:
+            logger.error(f"Ошибка генерации простого reasoning: {e}")
+            return f"Случайный сигнал {signal_type} для {symbol} с уверенностью {confidence:.2f}"
     
     def get_statistics(self) -> Dict[str, Any]:
         """

@@ -3,17 +3,24 @@
 Поддерживает множественные источники данных
 """
 
-import yfinance as yf
 import pandas as pd
 import numpy as np
 import os
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from loguru import logger
+
+try:
+    import yfinance as yf
+    YFINANCE_AVAILABLE = True
+except ImportError:
+    YFINANCE_AVAILABLE = False
+    logger.warning("yfinance не установлен, YFinanceProvider недоступен")
 import asyncio
 from abc import ABC, abstractmethod
 from .russian_data_provider import RussianDataProvider
 from .enhanced_tbank_provider import EnhancedTBankProvider, MultiProviderDataProvider
+from .news_data_provider import NewsDataProvider
 
 
 class MarketDataProvider(ABC):
@@ -74,6 +81,9 @@ class YFinanceProvider(MarketDataProvider):
         Args:
             symbols: Список тикеров для отслеживания
         """
+        if not YFINANCE_AVAILABLE:
+            raise ImportError("yfinance не установлен. Установите: pip install yfinance")
+        
         self.symbols = symbols
         self.last_update = None
         self.cache: Dict[str, pd.DataFrame] = {}
@@ -107,6 +117,10 @@ class YFinanceProvider(MarketDataProvider):
             DataFrame с историческими данными
         """
         try:
+            if not YFINANCE_AVAILABLE:
+                logger.warning("yfinance недоступен, используем российский провайдер")
+                return await self.russian_provider.get_historical_data(symbol, period)
+            
             # Конвертация российского тикера
             yf_symbol = self._convert_symbol(symbol)
             
@@ -302,7 +316,17 @@ class DataProvider:
         self.market_data: Dict[str, pd.DataFrame] = {}
         self.realtime_data: Dict[str, Dict] = {}
         self.enhanced_data: Dict[str, Dict] = {}  # Расширенные данные со стаканом заявок
+        self.news_data: Dict[str, Dict] = {}  # Новостные данные
         self.last_update = None
+        
+        # Инициализация новостного провайдера
+        news_config = config.get('news', {})
+        if news_config.get('enabled', True):
+            self.news_provider = NewsDataProvider(news_config)
+            logger.info("Новостной провайдер инициализирован")
+        else:
+            self.news_provider = None
+            logger.info("Новостной провайдер отключен")
         
         logger.info(f"Провайдер данных инициализирован для {len(self.symbols)} инструментов")
     
@@ -341,6 +365,10 @@ class DataProvider:
         # Первоначальное обновление данных в реальном времени
         await self.update_market_data()
         
+        # Загрузка новостных данных
+        if self.news_provider:
+            await self._load_news_data()
+        
         logger.info("Провайдер данных инициализирован")
     
     async def _load_historical_data(self):
@@ -366,6 +394,51 @@ class DataProvider:
                 logger.error(f"Ошибка загрузки исторических данных для {symbol}: {e}")
         
         logger.info(f"Загружены исторические данные для {len(self.market_data)} инструментов")
+    
+    async def _load_news_data(self):
+        """
+        Загрузка новостных данных
+        """
+        try:
+            if not self.news_provider:
+                logger.info("Новостной провайдер не инициализирован")
+                return
+            
+            # Проверяем, нужно ли загружать новостные данные
+            news_config = self.config.get('news', {})
+            if not news_config.get('enabled', True):
+                logger.info("Новостные данные отключены в конфигурации")
+                return
+            
+            logger.info("Загрузка новостных данных")
+            
+            # Определяем период для новостей
+            days_for_analysis = news_config.get('days_back', 14)  # Для анализа
+            days_for_training = news_config.get('training_news_days', 30)  # Для обучения
+            
+            # Получение новостей для анализа (2 недели)
+            analysis_news_data = await self.news_provider.get_all_symbols_news(self.symbols, days=days_for_analysis)
+            
+            # Получение новостей для обучения (ограниченный период)
+            training_news_data = None
+            if news_config.get('include_news_in_training', False):
+                training_news_data = await self.news_provider.get_all_symbols_news(self.symbols, days=days_for_training)
+                logger.info(f"Загружены новостные данные для обучения: {days_for_training} дней")
+            
+            if analysis_news_data:
+                self.news_data = analysis_news_data
+                logger.info(f"Загружены новостные данные для анализа: {len(analysis_news_data)} символов (сводки за {days_for_analysis} дней)")
+                
+                # Логирование сводки новостей
+                for symbol, news_summary in analysis_news_data.items():
+                    logger.debug(f"Новости для {symbol}: {news_summary.get('total_news', 0)} новостей, "
+                               f"тональность: {news_summary.get('avg_sentiment', 0):.3f}, "
+                               f"тренд: {news_summary.get('recent_trend', 'neutral')}")
+            else:
+                logger.warning("Не удалось загрузить новостные данные")
+                
+        except Exception as e:
+            logger.error(f"Ошибка загрузки новостных данных: {e}")
     
     async def update_market_data(self):
         """
@@ -409,6 +482,27 @@ class DataProvider:
         except Exception as e:
             logger.error(f"Ошибка обновления данных: {e}")
     
+    async def update_news_data(self):
+        """
+        Обновление новостных данных
+        """
+        try:
+            if not self.news_provider:
+                logger.debug("Новостной провайдер не инициализирован")
+                return
+            
+            # Обновление новостных данных
+            news_data = await self.news_provider.get_all_symbols_news(self.symbols, days=14)
+            
+            if news_data:
+                self.news_data = news_data
+                logger.debug(f"Новостные данные обновлены для {len(news_data)} символов")
+            else:
+                logger.warning("Не удалось обновить новостные данные")
+                
+        except Exception as e:
+            logger.error(f"Ошибка обновления новостных данных: {e}")
+    
     async def get_latest_data(self, symbol: Optional[str] = None) -> Dict:
         """
         Получение последних данных
@@ -423,12 +517,14 @@ class DataProvider:
             return {
                 'historical': self.market_data.get(symbol, pd.DataFrame()),
                 'realtime': self.realtime_data.get(symbol, {}),
+                'news': self.news_data.get(symbol, {}),
                 'symbol': symbol
             }
         else:
             return {
                 'historical': self.market_data,
                 'realtime': self.realtime_data,
+                'news': self.news_data,
                 'last_update': self.last_update
             }
     

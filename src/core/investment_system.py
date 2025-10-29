@@ -177,15 +177,25 @@ class InvestmentSystem:
         """
         while self.is_running:
             try:
+                logger.info("🔄 Начало цикла анализа нейросетями")
+                
                 # Получение последних данных
                 market_data = await self.data_provider.get_latest_data()
                 
-                # Анализ нейросетями с портфельными данными
-                predictions = await self.network_manager.analyze(market_data, self.portfolio_manager)
+                # Получение новостных данных
+                news_data = market_data.get('news', {})
+                logger.info(f"📰 Получены новостные данные для {len(news_data)} символов")
+                
+                # Анализ нейросетями с портфельными и новостными данными
+                predictions = await self.network_manager.analyze(market_data, self.portfolio_manager, news_data)
                 
                 # Передача предсказаний в торговый движок
                 await self.trading_engine.update_predictions(predictions)
                 
+                # Экспорт сигналов после обновления предсказаний
+                await self._export_signals_data()
+                
+                logger.info(f"✅ Цикл анализа завершен, следующий через {self.config['neural_networks']['analysis_interval']} сек")
                 await asyncio.sleep(self.config['neural_networks']['analysis_interval'])
             except Exception as e:
                 logger.error(f"Ошибка анализа: {e}")
@@ -288,12 +298,13 @@ class InvestmentSystem:
             data_dir = Path("data")
             data_dir.mkdir(exist_ok=True)
             
-            # Получение торговых сигналов (возвращает список объектов TradingSignal)
-            signals = await self.trading_engine.get_trading_signals()
+            # Получение ВСЕХ торговых сигналов (не только для выполнения)
+            all_signals = self.trading_engine.trading_signals
+            logger.info(f"📊 Экспорт сигналов: найдено {len(all_signals)} сигналов")
             
             signals_data = []
-            if signals:
-                for signal in signals:
+            if all_signals:
+                for signal in all_signals.values():
                     signals_data.append({
                         'time': signal.timestamp.strftime("%H:%M:%S"),
                         'symbol': signal.symbol,
@@ -302,8 +313,10 @@ class InvestmentSystem:
                         'action': f"Сигнал: {signal.signal}",
                         'price': float(signal.price) if signal.price else 0.0,
                         'strength': float(signal.strength),
-                        'source': signal.source
+                        'source': signal.source,
+                        'reasoning': signal.reasoning
                     })
+                    logger.debug(f"📊 Экспорт сигнала: {signal.symbol} {signal.signal} ({signal.timestamp.strftime('%H:%M:%S')})")
             
             # Загрузка существующих сигналов
             signals_file = data_dir / "signals.json"
@@ -312,6 +325,10 @@ class InvestmentSystem:
                 try:
                     with open(signals_file, 'r', encoding='utf-8') as f:
                         existing_signals = json.load(f)
+                        # Добавляем поле reasoning к старым сигналам, если его нет
+                        for signal in existing_signals:
+                            if 'reasoning' not in signal:
+                                signal['reasoning'] = ""
                 except:
                     existing_signals = []
             
@@ -326,10 +343,12 @@ class InvestmentSystem:
                 json.dump(existing_signals, f, ensure_ascii=False, indent=2)
             
             if signals_data:
-                logger.debug(f"Экспортировано {len(signals_data)} сигналов")
+                logger.info(f"✅ Экспортировано {len(signals_data)} новых сигналов в signals.json")
+            else:
+                logger.debug("ℹ️ Нет новых сигналов для экспорта")
             
         except Exception as e:
-            logger.error(f"Ошибка экспорта торговых сигналов: {e}")
+            logger.error(f"❌ Ошибка экспорта торговых сигналов: {e}")
     
     def get_system_status(self) -> Dict:
         """

@@ -93,13 +93,14 @@ class XGBoostNetwork(BaseNeuralNetwork):
         
         return labels
     
-    async def train(self, data: pd.DataFrame, target: str = 'Close') -> Dict[str, float]:
+    async def train(self, data: pd.DataFrame, target: str = 'Close', news_data: Dict[str, Any] = None) -> Dict[str, float]:
         """
         Обучение XGBoost модели
         
         Args:
             data: Данные для обучения
             target: Целевая переменная
+            news_data: Новостные данные для обучения
             
         Returns:
             Метрики обучения
@@ -107,8 +108,8 @@ class XGBoostNetwork(BaseNeuralNetwork):
         try:
             logger.info(f"Начало обучения XGBoost модели {self.name}")
             
-            # Подготовка данных
-            features = self.prepare_features(data)
+            # Подготовка данных с новостными признаками
+            features = self.prepare_features(data, news_data=news_data)
             
             # Определение признаков
             self.feature_columns = [col for col in features.columns if col != target]
@@ -170,7 +171,8 @@ class XGBoostNetwork(BaseNeuralNetwork):
                 'accuracy': float(accuracy),
                 'precision': float(precision),
                 'recall': float(recall),
-                'n_estimators_used': self.model.best_iteration if hasattr(self.model, 'best_iteration') else self.n_estimators
+                'n_estimators_used': self.model.best_iteration if hasattr(self.model, 'best_iteration') else self.n_estimators,
+                'news_features_used': bool(news_data)
             }
             
             # Сохранение важности признаков
@@ -186,7 +188,7 @@ class XGBoostNetwork(BaseNeuralNetwork):
             logger.error(f"Ошибка обучения XGBoost модели {self.name}: {e}")
             raise
     
-    async def predict(self, data: pd.DataFrame, portfolio_manager=None, symbol: str = None) -> Dict[str, Any]:
+    async def predict(self, data: pd.DataFrame, portfolio_manager=None, symbol: str = None, news_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Предсказание с помощью XGBoost модели
         
@@ -194,6 +196,7 @@ class XGBoostNetwork(BaseNeuralNetwork):
             data: Входные данные
             portfolio_manager: Менеджер портфеля для извлечения портфельных признаков
             symbol: Символ для анализа портфельных признаков
+            news_data: Новостные данные для анализа
             
         Returns:
             Словарь с предсказаниями
@@ -202,8 +205,8 @@ class XGBoostNetwork(BaseNeuralNetwork):
             if not self.is_trained or self.model is None:
                 raise ValueError(f"Модель {self.name} не обучена")
             
-            # Подготовка данных с портфельными признаками
-            features = self.prepare_features(data, portfolio_manager, symbol)
+            # Подготовка данных с портфельными и новостными признаками
+            features = self.prepare_features(data, portfolio_manager, symbol, news_data)
             
             # Использование сохраненных признаков
             if self.feature_columns:
@@ -230,6 +233,20 @@ class XGBoostNetwork(BaseNeuralNetwork):
             # Дополнительная информация
             signal_strength = self._calculate_signal_strength(probabilities, class_prediction)
             
+            # Добавление новостной информации в результат
+            news_info = {}
+            if news_data and symbol and symbol in news_data:
+                symbol_news = news_data[symbol]
+                news_info = {
+                    'news_sentiment': symbol_news.get('avg_sentiment', 0.0),
+                    'news_trend': symbol_news.get('recent_trend', 'neutral'),
+                    'news_count': symbol_news.get('total_news', 0),
+                    'news_summary': symbol_news.get('news_summary', '')
+                }
+            
+            # Генерация reasoning на основе анализа
+            reasoning = self._generate_reasoning(signal, confidence, probabilities, news_info, symbol)
+            
             # Сохранение результатов
             self.last_prediction = {
                 'signal': signal,
@@ -240,7 +257,9 @@ class XGBoostNetwork(BaseNeuralNetwork):
                     'HOLD': float(probabilities[1]),
                     'BUY': float(probabilities[2])
                 },
-                'class_prediction': int(class_prediction)
+                'class_prediction': int(class_prediction),
+                'news_info': news_info,
+                'reasoning': reasoning
             }
             self.last_prediction_time = datetime.now()
             
@@ -256,6 +275,7 @@ class XGBoostNetwork(BaseNeuralNetwork):
                 'confidence': 0.0,
                 'probabilities': {'SELL': 0.33, 'HOLD': 0.34, 'BUY': 0.33},
                 'class_prediction': 1,
+                'news_info': {},
                 'error': str(e)
             }
     
@@ -280,6 +300,68 @@ class XGBoostNetwork(BaseNeuralNetwork):
                 
         except Exception:
             return 0.0
+    
+    def _generate_reasoning(self, signal: str, confidence: float, probabilities: np.ndarray, 
+                           news_info: Dict[str, Any], symbol: str) -> str:
+        """
+        Генерация краткой сводки причины решения
+        
+        Args:
+            signal: Торговый сигнал
+            confidence: Уверенность в сигнале
+            probabilities: Вероятности классов
+            news_info: Новостная информация
+            symbol: Тикер инструмента
+            
+        Returns:
+            Краткая сводка причины решения
+        """
+        try:
+            reasoning_parts = []
+            
+            # Основная причина на основе сигнала
+            if signal == 'BUY':
+                reasoning_parts.append(f"Рекомендация покупки {symbol}")
+            elif signal == 'SELL':
+                reasoning_parts.append(f"Рекомендация продажи {symbol}")
+            else:
+                reasoning_parts.append(f"Рекомендация удержания позиции по {symbol}")
+            
+            # Уверенность
+            if confidence > 0.8:
+                reasoning_parts.append("высокая уверенность")
+            elif confidence > 0.6:
+                reasoning_parts.append("средняя уверенность")
+            else:
+                reasoning_parts.append("низкая уверенность")
+            
+            # Анализ вероятностей
+            buy_prob = probabilities[2]
+            sell_prob = probabilities[0]
+            hold_prob = probabilities[1]
+            
+            if buy_prob > 0.5:
+                reasoning_parts.append(f"вероятность роста {buy_prob:.1%}")
+            elif sell_prob > 0.5:
+                reasoning_parts.append(f"вероятность падения {sell_prob:.1%}")
+            else:
+                reasoning_parts.append(f"неопределенность (удержание {hold_prob:.1%})")
+            
+            # Новостной фон
+            if news_info and news_info.get('news_count', 0) > 0:
+                news_sentiment = news_info.get('news_sentiment', 0)
+                if news_sentiment > 0.1:
+                    reasoning_parts.append("позитивные новости")
+                elif news_sentiment < -0.1:
+                    reasoning_parts.append("негативные новости")
+                else:
+                    reasoning_parts.append("нейтральные новости")
+            
+            return ". ".join(reasoning_parts) + "."
+            
+        except Exception as e:
+            logger.error(f"Ошибка генерации reasoning: {e}")
+            return f"Сигнал {signal} для {symbol} с уверенностью {confidence:.2f}"
     
     async def get_feature_importance(self) -> Dict[str, float]:
         """
