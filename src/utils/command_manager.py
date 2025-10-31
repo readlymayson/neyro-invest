@@ -808,6 +808,24 @@ class CommandManager:
         # Создание ордера через TradingEngine
         if hasattr(self.system, 'trading_engine') and self.system.trading_engine:
             try:
+                # Проверка баланса перед покупкой
+                if self.portfolio:
+                    metrics = await self.portfolio.get_portfolio_metrics()
+                    if metrics:
+                        # Получаем текущую цену для расчета стоимости
+                        if hasattr(self.system, 'data_provider') and self.system.data_provider:
+                            market_data = await self.system.data_provider.get_latest_data()
+                            historical = market_data.get('historical', {})
+                            if symbol in historical and not historical[symbol].empty:
+                                current_price = historical[symbol]['Close'].iloc[-1]
+                                total_cost = quantity * current_price
+                                
+                                if metrics.cash_balance < total_cost:
+                                    print(f"❌ Недостаточно средств: требуется {total_cost:,.2f} ₽, доступно {metrics.cash_balance:,.2f} ₽")
+                                    return False
+                            else:
+                                print(f"⚠️ Не удалось получить цену для {symbol}, продолжаем без проверки баланса")
+                
                 # Создаем ордер напрямую для покупки
                 from src.trading.trading_engine import Order, OrderSide, OrderType
                 

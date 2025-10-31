@@ -88,20 +88,20 @@ neural_networks:
     - name: "xgboost_enhanced"
       type: "xgboost"
       config:
-      n_estimators: 100
-      max_depth: 6
-      learning_rate: 0.1
-      subsample: 0.8
-      colsample_bytree: 0.8
-      random_state: 42
-      # Расширенные параметры для работы с большим количеством признаков
-      reg_alpha: 0.1
-      reg_lambda: 1.0
-      gamma: 0.1
-      min_child_weight: 3
-      # Пороги для классификации
-      buy_threshold: 0.05
-      sell_threshold: -0.05
+        n_estimators: 100
+        max_depth: 6
+        learning_rate: 0.1
+        subsample: 0.8
+        colsample_bytree: 0.8
+        random_state: 42
+        # Расширенные параметры для работы с большим количеством признаков
+        reg_alpha: 0.1
+        reg_lambda: 1.0
+        gamma: 0.1
+        min_child_weight: 3
+        # Пороги для классификации
+        buy_threshold: 0.05
+        sell_threshold: -0.05
       
     - name: "deepseek_enhanced"
       type: "deepseek"

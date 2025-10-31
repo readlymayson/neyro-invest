@@ -100,21 +100,59 @@ class InvestmentSystem:
         """
         logger.info("Инициализация компонентов системы")
         
+        initialization_errors = []
+        
         # Инициализация провайдера данных
-        await self.data_provider.initialize()
+        try:
+            await self.data_provider.initialize()
+            logger.info("✅ Провайдер данных инициализирован")
+        except Exception as e:
+            error_msg = f"Ошибка инициализации провайдера данных: {e}"
+            logger.error(error_msg)
+            initialization_errors.append(error_msg)
         
         # Инициализация нейросетей
-        await self.network_manager.initialize()
+        try:
+            await self.network_manager.initialize()
+            logger.info("✅ Менеджер нейросетей инициализирован")
+        except Exception as e:
+            error_msg = f"Ошибка инициализации менеджера нейросетей: {e}"
+            logger.error(error_msg)
+            initialization_errors.append(error_msg)
         
         # Инициализация торгового движка
-        await self.trading_engine.initialize()
+        try:
+            await self.trading_engine.initialize()
+            logger.info("✅ Торговый движок инициализирован")
+            
+            # Проверка успешной инициализации брокера для T-Bank
+            if self.trading_engine.broker_type in ['tinkoff', 'tbank']:
+                if not hasattr(self.trading_engine, 'tbank_broker') or not self.trading_engine.tbank_broker:
+                    warning_msg = "T-Bank брокер не инициализирован, будет использован режим paper trading"
+                    logger.warning(warning_msg)
+                    initialization_errors.append(warning_msg)
+        except Exception as e:
+            error_msg = f"Ошибка инициализации торгового движка: {e}"
+            logger.error(error_msg)
+            initialization_errors.append(error_msg)
         
         # Установка списка символов в торговый движок
         symbols = self.config['data'].get('symbols', [])
-        self.trading_engine.set_symbols(symbols)
+        if symbols:
+            self.trading_engine.set_symbols(symbols)
+        else:
+            warning_msg = "Список символов пуст в конфигурации"
+            logger.warning(warning_msg)
+            initialization_errors.append(warning_msg)
         
         # Инициализация менеджера портфеля
-        await self.portfolio_manager.initialize()
+        try:
+            await self.portfolio_manager.initialize()
+            logger.info("✅ Менеджер портфеля инициализирован")
+        except Exception as e:
+            error_msg = f"Ошибка инициализации менеджера портфеля: {e}"
+            logger.error(error_msg)
+            initialization_errors.append(error_msg)
         
         # Установка связей между компонентами
         self.trading_engine.set_components(self.data_provider, self.portfolio_manager)
@@ -124,9 +162,23 @@ class InvestmentSystem:
         if hasattr(self.trading_engine, 'tbank_broker') and self.trading_engine.tbank_broker:
             self.portfolio_manager.set_tbank_broker(self.trading_engine.tbank_broker)
             # Синхронизация с T-Bank при инициализации
-            await self.portfolio_manager.sync_with_tbank()
+            try:
+                sync_result = await self.portfolio_manager.sync_with_tbank()
+                if not sync_result:
+                    warning_msg = "Не удалось синхронизироваться с T-Bank при инициализации"
+                    logger.warning(warning_msg)
+                    initialization_errors.append(warning_msg)
+            except Exception as e:
+                warning_msg = f"Ошибка синхронизации с T-Bank: {e}"
+                logger.warning(warning_msg)
+                initialization_errors.append(warning_msg)
         
-        logger.info("Все компоненты инициализированы")
+        if initialization_errors:
+            logger.warning(f"Инициализация завершена с предупреждениями: {len(initialization_errors)} проблем")
+            for error in initialization_errors:
+                logger.warning(f"  - {error}")
+        else:
+            logger.info("✅ Все компоненты успешно инициализированы")
     
     async def _start_main_tasks(self):
         """

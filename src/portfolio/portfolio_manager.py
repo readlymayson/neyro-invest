@@ -114,8 +114,15 @@ class PortfolioManager:
         self.current_metrics: Optional[PortfolioMetrics] = None
         self.risk_metrics: Dict[str, float] = {}
         
+        # Значение портфеля на начало дня (для расчета дневной прибыли)
+        self.start_of_day_value: Optional[float] = None
+        self.start_of_day_date: Optional[datetime] = None
+        
         # Провайдер данных (будет установлен через set_data_provider)
         self.data_provider = None
+        
+        # Блокировка для синхронизации с T-Bank API
+        self._sync_lock = asyncio.Lock()
         
         logger.info(f"Менеджер портфеля инициализирован с капиталом {self.initial_capital}")
     
@@ -412,64 +419,89 @@ class PortfolioManager:
         Синхронизация портфеля с T-Bank API
         Полностью заменяем локальные данные данными из брокера
         """
-        try:
-            if not self.tbank_broker:
-                logger.warning("T-Bank брокер не установлен, синхронизация невозможна")
+        async with self._sync_lock:
+            try:
+                if not self.tbank_broker:
+                    logger.warning("T-Bank брокер не установлен, синхронизация невозможна")
+                    return False
+                
+                logger.debug("Синхронизация портфеля с T-Bank API")
+                
+                # Обновляем позиции из T-Bank
+                await self.tbank_broker.update_positions()
+                tbank_positions = self.tbank_broker.positions
+                
+                # Получаем баланс из T-Bank
+                tbank_balances = await self.tbank_broker.get_account_balance()
+                tbank_cash = tbank_balances.get('rub', 0.0)
+                
+                # Валидация данных от API
+                if tbank_cash < 0:
+                    logger.warning(f"Некорректный баланс от T-Bank API: {tbank_cash}, используем текущий баланс")
+                    tbank_cash = self.cash_balance
+                
+                # Полностью заменяем локальные данные данными из T-Bank
+                self.cash_balance = tbank_cash
+                
+                # Сначала синхронизируем транзакции из T-Bank
+                await self._sync_tbank_transactions()
+                
+                # Очищаем локальные позиции и заполняем данными из T-Bank
+                self.positions = {}
+                for ticker, pos_data in tbank_positions.items():
+                    # Валидация данных позиции
+                    quantity = pos_data.get('quantity', 0)
+                    if not isinstance(quantity, (int, float)):
+                        logger.warning(f"Некорректное количество для {ticker}: {quantity}, пропускаем")
+                        continue
+                    
+                    if pos_data['quantity'] != 0:  # Показываем все позиции (включая короткие)
+                        # Получаем текущую цену
+                        current_price = await self._get_current_price(ticker)
+                        
+                        # Валидация цены
+                        if current_price <= 0:
+                            logger.warning(f"Некорректная цена для {ticker}: {current_price}, пропускаем позицию")
+                            continue
+                        
+                        # Расчет средней цены из транзакций
+                        average_price = await self._calculate_average_price(ticker)
+                        if average_price <= 0:
+                            # Если не удалось рассчитать среднюю цену, используем текущую цену
+                            average_price = current_price
+                            logger.warning(f"Средняя цена для {ticker} не рассчитана, используем текущую цену: {current_price}")
+                        else:
+                            logger.debug(f"Средняя цена для {ticker}: {average_price:.2f} ₽ (из транзакций)")
+                        
+                        position = Position(
+                            symbol=ticker,
+                            quantity=pos_data['quantity'],
+                            average_price=average_price,
+                            current_price=current_price,
+                            market_value=abs(pos_data['quantity']) * current_price,  # Абсолютное значение для стоимости
+                            unrealized_pnl=(pos_data['quantity'] * current_price) - (pos_data['quantity'] * average_price),
+                            unrealized_pnl_percent=((current_price - average_price) / average_price * 100) if average_price > 0 else 0,
+                            last_updated=datetime.now()
+                        )
+                        self.positions[ticker] = position
+                
+                # Пересчитываем метрики портфеля
+                await self._calculate_portfolio_metrics()
+                
+                # Если значение на начало дня еще не установлено, устанавливаем его после синхронизации
+                if self.current_metrics and (self.start_of_day_value is None or 
+                                             self.start_of_day_date is None or
+                                             self.start_of_day_date.date() != datetime.now().date()):
+                    self.start_of_day_value = self.current_metrics.total_value
+                    self.start_of_day_date = datetime.now()
+                    logger.debug(f"Установлено значение на начало дня после синхронизации: {self.start_of_day_value:.2f} ₽")
+                
+                logger.info(f"Синхронизация с T-Bank завершена: {len(self.positions)} позиций, баланс {self.cash_balance:,.2f} ₽")
+                return True
+                
+            except Exception as e:
+                logger.error(f"Ошибка синхронизации с T-Bank: {e}")
                 return False
-            
-            logger.debug("Синхронизация портфеля с T-Bank API")
-            
-            # Обновляем позиции из T-Bank
-            await self.tbank_broker.update_positions()
-            tbank_positions = self.tbank_broker.positions
-            
-            # Получаем баланс из T-Bank
-            tbank_balances = await self.tbank_broker.get_account_balance()
-            tbank_cash = tbank_balances.get('rub', 0.0)
-            
-            # Полностью заменяем локальные данные данными из T-Bank
-            self.cash_balance = tbank_cash
-            
-            # Сначала синхронизируем транзакции из T-Bank
-            await self._sync_tbank_transactions()
-            
-            # Очищаем локальные позиции и заполняем данными из T-Bank
-            self.positions = {}
-            for ticker, pos_data in tbank_positions.items():
-                if pos_data['quantity'] != 0:  # Показываем все позиции (включая короткие)
-                    # Получаем текущую цену
-                    current_price = await self._get_current_price(ticker)
-                    
-                    # Расчет средней цены из транзакций
-                    average_price = await self._calculate_average_price(ticker)
-                    if average_price <= 0:
-                        # Если не удалось рассчитать среднюю цену, используем текущую цену
-                        average_price = current_price
-                        logger.warning(f"Средняя цена для {ticker} не рассчитана, используем текущую цену: {current_price}")
-                    else:
-                        logger.debug(f"Средняя цена для {ticker}: {average_price:.2f} ₽ (из транзакций)")
-                    
-                    position = Position(
-                        symbol=ticker,
-                        quantity=pos_data['quantity'],
-                        average_price=average_price,
-                        current_price=current_price,
-                        market_value=abs(pos_data['quantity']) * current_price,  # Абсолютное значение для стоимости
-                        unrealized_pnl=(pos_data['quantity'] * current_price) - (pos_data['quantity'] * average_price),
-                        unrealized_pnl_percent=((current_price - average_price) / average_price * 100) if average_price > 0 else 0,
-                        last_updated=datetime.now()
-                    )
-                    self.positions[ticker] = position
-            
-            # Пересчитываем метрики портфеля
-            await self._calculate_portfolio_metrics()
-            
-            logger.info(f"Синхронизация с T-Bank завершена: {len(self.positions)} позиций, баланс {self.cash_balance:,.2f} ₽")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Ошибка синхронизации с T-Bank: {e}")
-            return False
     
     async def _sync_tbank_transactions(self):
         """
@@ -664,8 +696,31 @@ class PortfolioManager:
             total_pnl_percent = (total_pnl / self.initial_capital) * 100 if self.initial_capital > 0 else 0
             
             # Расчет дневной прибыли/убытка
-            daily_pnl = 0.0  # Здесь нужна логика расчета дневного P&L
-            daily_pnl_percent = 0.0
+            current_date = datetime.now().date()
+            
+            # Проверяем, нужно ли обновить значение на начало дня
+            if (self.start_of_day_date is None or 
+                self.start_of_day_date.date() != current_date or 
+                self.start_of_day_value is None):
+                # Новый день - сохраняем текущее значение как начало дня
+                # Если это первый расчет и значение еще не установлено, используем текущее значение
+                old_start_value = self.start_of_day_value
+                self.start_of_day_value = total_value
+                self.start_of_day_date = datetime.now()
+                
+                if old_start_value is None:
+                    logger.debug(f"Установлено начальное значение для расчета дневной прибыли: {self.start_of_day_value:.2f} ₽")
+                else:
+                    logger.info(f"Начался новый день. Обновлено значение на начало дня: {self.start_of_day_value:.2f} ₽ (было: {old_start_value:.2f} ₽)")
+            
+            # Расчет дневной прибыли как разница между текущим значением и началом дня
+            if self.start_of_day_value is not None and self.start_of_day_value > 0:
+                daily_pnl = total_value - self.start_of_day_value
+                daily_pnl_percent = (daily_pnl / self.start_of_day_value * 100)
+            else:
+                # Если значение на начало дня еще не установлено, используем 0
+                daily_pnl = 0.0
+                daily_pnl_percent = 0.0
             
             # Расчет коэффициента Шарпа
             sharpe_ratio = await self._calculate_sharpe_ratio()

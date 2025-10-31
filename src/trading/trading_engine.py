@@ -168,10 +168,11 @@ class TradingEngine:
         self.trading_signals: Dict[str, TradingSignal] = {}
         self.last_signal_check = None
         
-        # Защита от частых перепродаж
-        self.last_trade_time: Dict[str, datetime] = {}  # Последняя сделка по символу
-        self.sell_history: Dict[str, List[datetime]] = {}  # История продаж по символу
-        self.last_sell_confidence: Dict[str, float] = {}   # Последняя уверенность продажи
+        # Блокировка для работы с торговыми сигналами
+        self._signals_lock = asyncio.Lock()
+        
+        # Примечание: Состояние кулдаунов хранится в PortfolioManager как единственный источник истины
+        # Удалены дублирующие поля: last_trade_time, sell_history, last_sell_confidence
         
         # Компоненты системы
         self.data_provider: Optional[DataProvider] = None
@@ -280,76 +281,77 @@ class TradingEngine:
         Args:
             predictions: Предсказания от нейросетей по всем символам
         """
-        try:
-            logger.info(f"🔄 Обновление предсказаний: получено {len(predictions)} ключей")
-            logger.debug(f"📊 Ключи предсказаний: {list(predictions.keys())}")
-            
-            # НЕ очищаем старые сигналы - сохраняем историю для кулдауна
-            # self.trading_signals.clear()  # Убрано для сохранения кулдауна
-            
-            # Очищаем только устаревшие сигналы (старше 5 минут)
-            current_time = datetime.now()
-            expired_signals = []
-            for key, signal in self.trading_signals.items():
-                if current_time - signal.timestamp > timedelta(minutes=5):
-                    expired_signals.append(key)
-            
-            for key in expired_signals:
-                del self.trading_signals[key]
-            
-            if expired_signals:
-                logger.debug(f"Очищено {len(expired_signals)} устаревших сигналов")
-            
-            # Обработка предсказаний каждой модели для каждого символа
-            if 'individual_predictions' in predictions:
-                for model_name, symbols_predictions in predictions['individual_predictions'].items():
-                    # symbols_predictions - это словарь {symbol: prediction}
-                    for symbol, prediction in symbols_predictions.items():
-                        if 'error' in prediction:
-                            continue
-                        
-                        # Создание торгового сигнала
-                        signal = self._create_trading_signal(prediction, model_name)
-                        if signal:
-                            # Фильтрация сигналов на кулдауне перед сохранением
-                            if self.filter_cooldown_signals and not await self._can_execute_signal_by_type(signal):
-                                logger.debug(f"🚫 {signal.symbol}: Сигнал {signal.signal} отфильтрован на кулдауне при создании")
+        async with self._signals_lock:
+            try:
+                logger.info(f"🔄 Обновление предсказаний: получено {len(predictions)} ключей")
+                logger.debug(f"📊 Ключи предсказаний: {list(predictions.keys())}")
+                
+                # НЕ очищаем старые сигналы - сохраняем историю для кулдауна
+                # self.trading_signals.clear()  # Убрано для сохранения кулдауна
+                
+                # Очищаем только устаревшие сигналы (старше 5 минут)
+                current_time = datetime.now()
+                expired_signals = []
+                for key, signal in self.trading_signals.items():
+                    if current_time - signal.timestamp > timedelta(minutes=5):
+                        expired_signals.append(key)
+                
+                for key in expired_signals:
+                    del self.trading_signals[key]
+                
+                if expired_signals:
+                    logger.debug(f"Очищено {len(expired_signals)} устаревших сигналов")
+                
+                # Обработка предсказаний каждой модели для каждого символа
+                if 'individual_predictions' in predictions:
+                    for model_name, symbols_predictions in predictions['individual_predictions'].items():
+                        # symbols_predictions - это словарь {symbol: prediction}
+                        for symbol, prediction in symbols_predictions.items():
+                            if 'error' in prediction:
                                 continue
                             
-                            # Ключ с именем модели и символом
-                            key = f"{model_name}_{symbol}"
-                            self.trading_signals[key] = signal
-            
-            # Обработка ансамблевых предсказаний (теперь по символам)
-            if 'ensemble_predictions' in predictions:
-                for symbol, ensemble_pred in predictions['ensemble_predictions'].items():
-                    ensemble_signal = self._create_trading_signal(
-                        ensemble_pred, 
-                        'ensemble'
-                    )
-                    if ensemble_signal:
-                        # Фильтрация сигналов на кулдауне перед сохранением
-                        if self.filter_cooldown_signals and not await self._can_execute_signal_by_type(ensemble_signal):
-                            logger.debug(f"🚫 {ensemble_signal.symbol}: Ансамблевый сигнал {ensemble_signal.signal} отфильтрован на кулдауне при создании")
-                            continue
-                        
-                        key = f"ensemble_{symbol}"
-                        self.trading_signals[key] = ensemble_signal
-            
-            logger.info(f"Обновлено {len(self.trading_signals)} торговых сигналов")
-            
-            # Логирование новых сигналов
-            if 'ensemble_predictions' in predictions:
-                logger.info(f"📊 Обработка {len(predictions['ensemble_predictions'])} ансамблевых предсказаний")
-                for symbol, ensemble_pred in predictions['ensemble_predictions'].items():
-                    signal_type = ensemble_pred.get('signal', 'HOLD')
-                    confidence = ensemble_pred.get('confidence', 0.0)
-                    logger.info(f"📊 {symbol}: {signal_type} (уверенность: {confidence:.3f})")
-            else:
-                logger.warning("⚠️ Нет ансамблевых предсказаний для обработки")
-            
-        except Exception as e:
-            logger.error(f"Ошибка обновления предсказаний: {e}")
+                            # Создание торгового сигнала
+                            signal = self._create_trading_signal(prediction, model_name)
+                            if signal:
+                                # Фильтрация сигналов на кулдауне перед сохранением
+                                if self.filter_cooldown_signals and not await self._can_execute_signal_by_type(signal):
+                                    logger.debug(f"🚫 {signal.symbol}: Сигнал {signal.signal} отфильтрован на кулдауне при создании")
+                                    continue
+                                
+                                # Ключ с именем модели и символом
+                                key = f"{model_name}_{symbol}"
+                                self.trading_signals[key] = signal
+                
+                # Обработка ансамблевых предсказаний (теперь по символам)
+                if 'ensemble_predictions' in predictions:
+                    for symbol, ensemble_pred in predictions['ensemble_predictions'].items():
+                        ensemble_signal = self._create_trading_signal(
+                            ensemble_pred, 
+                            'ensemble'
+                        )
+                        if ensemble_signal:
+                            # Фильтрация сигналов на кулдауне перед сохранением
+                            if self.filter_cooldown_signals and not await self._can_execute_signal_by_type(ensemble_signal):
+                                logger.debug(f"🚫 {ensemble_signal.symbol}: Ансамблевый сигнал {ensemble_signal.signal} отфильтрован на кулдауне при создании")
+                                continue
+                            
+                            key = f"ensemble_{symbol}"
+                            self.trading_signals[key] = ensemble_signal
+                
+                logger.info(f"Обновлено {len(self.trading_signals)} торговых сигналов")
+                
+                # Логирование новых сигналов
+                if 'ensemble_predictions' in predictions:
+                    logger.info(f"📊 Обработка {len(predictions['ensemble_predictions'])} ансамблевых предсказаний")
+                    for symbol, ensemble_pred in predictions['ensemble_predictions'].items():
+                        signal_type = ensemble_pred.get('signal', 'HOLD')
+                        confidence = ensemble_pred.get('confidence', 0.0)
+                        logger.info(f"📊 {symbol}: {signal_type} (уверенность: {confidence:.3f})")
+                else:
+                    logger.warning("⚠️ Нет ансамблевых предсказаний для обработки")
+                    
+            except Exception as e:
+                logger.error(f"Ошибка обновления предсказаний: {e}")
     
     def _create_trading_signal(self, prediction: Dict[str, Any], source: str) -> Optional[TradingSignal]:
         """
@@ -406,34 +408,35 @@ class TradingEngine:
         Returns:
             Список торговых сигналов
         """
-        try:
-            signals_to_execute = []
-            
-            # Проверка сигналов
-            for signal_name, signal in self.trading_signals.items():
-                # Проверка времени сигнала (не старше 5 минут)
-                if datetime.now() - signal.timestamp > timedelta(minutes=5):
-                    continue
+        async with self._signals_lock:
+            try:
+                signals_to_execute = []
                 
-                # Проверка уверенности
-                if signal.confidence < self.signal_threshold:
-                    continue
+                # Проверка сигналов
+                for signal_name, signal in self.trading_signals.items():
+                    # Проверка времени сигнала (не старше 5 минут)
+                    if datetime.now() - signal.timestamp > timedelta(minutes=5):
+                        continue
+                    
+                    # Проверка уверенности
+                    if signal.confidence < self.signal_threshold:
+                        continue
+                    
+                    # Фильтрация сигналов на кулдауне перед анализом
+                    if self.filter_cooldown_signals and not await self._can_execute_signal_by_type(signal):
+                        logger.debug(f"🚫 {signal.symbol}: Сигнал {signal.signal} отфильтрован на кулдауне")
+                        continue
+                    
+                    # Проверка возможности открытия позиции
+                    if await self._can_open_position(signal.symbol, signal.signal):
+                        signals_to_execute.append(signal)
                 
-                # Фильтрация сигналов на кулдауне перед анализом
-                if self.filter_cooldown_signals and not await self._can_execute_signal_by_type(signal):
-                    logger.debug(f"🚫 {signal.symbol}: Сигнал {signal.signal} отфильтрован на кулдауне")
-                    continue
+                logger.debug(f"Найдено {len(signals_to_execute)} сигналов для выполнения")
+                return signals_to_execute
                 
-                # Проверка возможности открытия позиции
-                if await self._can_open_position(signal.symbol, signal.signal):
-                    signals_to_execute.append(signal)
-            
-            logger.debug(f"Найдено {len(signals_to_execute)} сигналов для выполнения")
-            return signals_to_execute
-            
-        except Exception as e:
-            logger.error(f"Ошибка получения торговых сигналов: {e}")
-            return []
+            except Exception as e:
+                logger.error(f"Ошибка получения торговых сигналов: {e}")
+                return []
     
     async def _can_open_position(self, symbol: str, signal: str) -> bool:
         """
@@ -490,9 +493,9 @@ class TradingEngine:
                 else:
                     return False
             
-            # Проверка времени последней сделки
-            if symbol in self.last_trade_time:
-                time_since_last_trade = datetime.now() - self.last_trade_time[symbol]
+            # Проверка времени последней сделки (используем PortfolioManager как источник)
+            if self.portfolio_manager and symbol in self.portfolio_manager.last_trade_time:
+                time_since_last_trade = datetime.now() - self.portfolio_manager.last_trade_time[symbol]
                 if time_since_last_trade.total_seconds() < self.min_trade_interval:
                     logger.debug(f"Слишком рано для торговли {symbol}: прошло {time_since_last_trade.total_seconds()/60:.1f} мин")
                     return False

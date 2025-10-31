@@ -179,37 +179,49 @@ class TBankBroker:
         else:
             logger.info(f"Используется существующий sandbox счет: {self.account_id}")
     
-    async def update_positions(self):
+    async def update_positions(self, max_retries: int = 3, retry_delay: float = 1.0):
         """
-        Обновление текущих позиций
+        Обновление текущих позиций с механизмом повторных попыток
+        
+        Args:
+            max_retries: Максимальное количество попыток
+            retry_delay: Задержка между попытками в секундах
         """
-        try:
-            async with AsyncClient(self.token, target=self.target) as client:
-                if self.sandbox:
-                    response = await client.sandbox.get_sandbox_positions(
-                        account_id=self.account_id
-                    )
+        for attempt in range(max_retries):
+            try:
+                async with AsyncClient(self.token, target=self.target) as client:
+                    if self.sandbox:
+                        response = await client.sandbox.get_sandbox_positions(
+                            account_id=self.account_id
+                        )
+                    else:
+                        response = await client.operations.get_positions(
+                            account_id=self.account_id
+                        )
+                    
+                    self.positions = {}
+                    for position in response.securities:
+                        # Находим тикер по FIGI
+                        ticker = self._figi_to_ticker(position.figi)
+                        if ticker:
+                            self.positions[ticker] = {
+                                'figi': position.figi,
+                                'quantity': self._quotation_to_float(position.balance),
+                                'blocked': self._quotation_to_float(position.blocked) if hasattr(position, 'blocked') else 0,
+                                'average_price': self._money_value_to_float(position.average_position_price) if hasattr(position, 'average_position_price') else 0,
+                            }
+                    
+                    logger.debug(f"Обновлены позиции: {len(self.positions)} инструментов")
+                    return  # Успешно обновлено
+                    
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    logger.warning(f"Ошибка обновления позиций (попытка {attempt + 1}/{max_retries}): {e}, повтор через {retry_delay} сек")
+                    await asyncio.sleep(retry_delay)
                 else:
-                    response = await client.operations.get_positions(
-                        account_id=self.account_id
-                    )
-                
-                self.positions = {}
-                for position in response.securities:
-                    # Находим тикер по FIGI
-                    ticker = self._figi_to_ticker(position.figi)
-                    if ticker:
-                        self.positions[ticker] = {
-                            'figi': position.figi,
-                            'quantity': self._quotation_to_float(position.balance),
-                            'blocked': self._quotation_to_float(position.blocked) if hasattr(position, 'blocked') else 0,
-                            'average_price': self._money_value_to_float(position.average_position_price) if hasattr(position, 'average_position_price') else 0,
-                        }
-                
-                logger.debug(f"Обновлены позиции: {len(self.positions)} инструментов")
-                
-        except Exception as e:
-            logger.error(f"Ошибка обновления позиций: {e}")
+                    logger.error(f"Ошибка обновления позиций после {max_retries} попыток: {e}")
+                    # Возвращаемся с пустым словарем позиций при ошибке
+                    self.positions = {}
     
     async def place_order_lots(self, ticker: str, lots: int, direction: str, order_type: str = "market", price: float = None):
         """
@@ -529,39 +541,48 @@ class TBankBroker:
             logger.error(f"Ошибка получения портфеля: {e}")
             return {'total_amount': 0, 'expected_yield': 0, 'positions': []}
     
-    async def get_account_balance(self) -> Dict[str, float]:
+    async def get_account_balance(self, max_retries: int = 3, retry_delay: float = 1.0) -> Dict[str, float]:
         """
-        Получение баланса счета (денежные средства по валютам)
+        Получение баланса счета (денежные средства по валютам) с механизмом повторных попыток
+        
+        Args:
+            max_retries: Максимальное количество попыток
+            retry_delay: Задержка между попытками в секундах
         
         Returns:
             Словарь с балансами по валютам: {'rub': amount, 'usd': amount, ...}
         """
-        try:
-            async with AsyncClient(self.token, target=self.target) as client:
-                if self.sandbox:
-                    response = await client.sandbox.get_sandbox_positions(
-                        account_id=self.account_id
-                    )
+        for attempt in range(max_retries):
+            try:
+                async with AsyncClient(self.token, target=self.target) as client:
+                    if self.sandbox:
+                        response = await client.sandbox.get_sandbox_positions(
+                            account_id=self.account_id
+                        )
+                    else:
+                        response = await client.operations.get_positions(
+                            account_id=self.account_id
+                        )
+                    
+                    balances = {}
+                    
+                    # Получение денежных средств
+                    if hasattr(response, 'money') and response.money:
+                        for money in response.money:
+                            currency = money.currency.lower()
+                            amount = self._money_value_to_float(money)
+                            balances[currency] = amount
+                    
+                    logger.debug(f"Получены балансы счета: {balances}")
+                    return balances
+                    
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    logger.warning(f"Ошибка получения баланса (попытка {attempt + 1}/{max_retries}): {e}, повтор через {retry_delay} сек")
+                    await asyncio.sleep(retry_delay)
                 else:
-                    response = await client.operations.get_positions(
-                        account_id=self.account_id
-                    )
-                
-                balances = {}
-                
-                # Получение денежных средств
-                if hasattr(response, 'money') and response.money:
-                    for money in response.money:
-                        currency = money.currency.lower()
-                        amount = self._money_value_to_float(money)
-                        balances[currency] = amount
-                
-                logger.debug(f"Получены балансы счета: {balances}")
-                return balances
-                
-        except Exception as e:
-            logger.error(f"Ошибка получения баланса счета: {e}")
-            return {}
+                    logger.error(f"Ошибка получения баланса после {max_retries} попыток: {e}")
+                    return {}  # Возвращаем пустой словарь при ошибке
     
     async def get_total_balance_rub(self) -> float:
         """
