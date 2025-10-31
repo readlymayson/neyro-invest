@@ -129,6 +129,9 @@ neural_networks:
   analysis_interval: 180  # секунд между анализами
   signal_check_interval: 180  # секунд между проверками сигналов
   
+  # Управление передачей данных портфеля в нейросети при генерации сигналов
+  enable_portfolio_features: true
+  
   # Настройки портфельных признаков
   portfolio_features:
     lookback_days: 30

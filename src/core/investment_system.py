@@ -186,8 +186,14 @@ class InvestmentSystem:
                 news_data = market_data.get('news', {})
                 logger.info(f"📰 Получены новостные данные для {len(news_data)} символов")
                 
-                # Анализ нейросетями с портфельными и новостными данными
-                predictions = await self.network_manager.analyze(market_data, self.portfolio_manager, news_data)
+                # Анализ нейросетями с условной передачей портфельных данных
+                use_portfolio = self.config.get('neural_networks', {}).get('enable_portfolio_features', True)
+                portfolio_mgr = self.portfolio_manager if use_portfolio else None
+                predictions = await self.network_manager.analyze(
+                    market_data,
+                    portfolio_manager=portfolio_mgr,
+                    news_data=news_data
+                )
                 
                 # Передача предсказаний в торговый движок
                 await self.trading_engine.update_predictions(predictions)

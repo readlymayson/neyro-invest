@@ -569,10 +569,23 @@ class CommandManager:
                 # Получение данных для анализа
                 market_data = await self.system.data_provider.get_latest_data()
                 
-                # Анализ нейросетями
-                predictions = await self.system.network_manager.analyze(market_data)
+                # Анализ нейросетями с условной передачей портфельных данных
+                use_portfolio = False
+                try:
+                    use_portfolio = self.system.config.get('neural_networks', {}).get('enable_portfolio_features', True)
+                except Exception:
+                    use_portfolio = True
+                predictions = await self.system.network_manager.analyze(
+                    market_data,
+                    portfolio_manager=self.system.portfolio_manager if use_portfolio else None,
+                    news_data=market_data.get('news', {})
+                )
                 
-                # Экспорт сигналов после анализа
+                # Обновляем предсказания в торговом движке, чтобы сформировать trading_signals
+                if hasattr(self.system, 'trading_engine') and self.system.trading_engine:
+                    await self.system.trading_engine.update_predictions(predictions)
+                
+                # Экспорт сигналов после обновления предсказаний
                 await self.system._export_signals_data()
                 
                 print(f"✅ Анализ завершен. Получено {len(predictions)} предсказаний")

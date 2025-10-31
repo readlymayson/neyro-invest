@@ -316,7 +316,8 @@ class DataProvider:
         self.market_data: Dict[str, pd.DataFrame] = {}
         self.realtime_data: Dict[str, Dict] = {}
         self.enhanced_data: Dict[str, Dict] = {}  # Расширенные данные со стаканом заявок
-        self.news_data: Dict[str, Dict] = {}  # Новостные данные
+        self.news_data: Dict[str, Dict] = {}  # Новостные данные для анализа (короткий период)
+        self.news_training_data: Dict[str, Dict] = {}  # Новостные данные для обучения (длинный период)
         self.last_update = None
         
         # Инициализация новостного провайдера
@@ -423,7 +424,11 @@ class DataProvider:
             training_news_data = None
             if news_config.get('include_news_in_training', False):
                 training_news_data = await self.news_provider.get_all_symbols_news(self.symbols, days=days_for_training)
-                logger.info(f"Загружены новостные данные для обучения: {days_for_training} дней")
+                if training_news_data:
+                    self.news_training_data = training_news_data
+                    logger.info(f"Загружены новостные данные для обучения: {days_for_training} дней")
+                else:
+                    logger.warning("Не удалось загрузить новостные данные для обучения")
             
             if analysis_news_data:
                 self.news_data = analysis_news_data
@@ -518,6 +523,7 @@ class DataProvider:
                 'historical': self.market_data.get(symbol, pd.DataFrame()),
                 'realtime': self.realtime_data.get(symbol, {}),
                 'news': self.news_data.get(symbol, {}),
+                'news_training': self.news_training_data.get(symbol, {}),
                 'symbol': symbol
             }
         else:
@@ -525,6 +531,7 @@ class DataProvider:
                 'historical': self.market_data,
                 'realtime': self.realtime_data,
                 'news': self.news_data,
+                'news_training': self.news_training_data,
                 'last_update': self.last_update
             }
     

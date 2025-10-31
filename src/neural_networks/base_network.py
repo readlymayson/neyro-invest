@@ -136,6 +136,9 @@ class BaseNeuralNetwork(ABC):
         gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
         rs = gain / loss
+        # Избегаем деления на ноль и NaN
+        rs = rs.fillna(1.0)  # Заполняем NaN единицей (нейтральный RSI = 50)
+        rs = rs.replace([np.inf, -np.inf], 1.0)  # Заменяем бесконечности
         df['RSI'] = 100 - (100 / (1 + rs))
         
         # MACD
@@ -201,7 +204,14 @@ class BaseNeuralNetwork(ABC):
         price_columns = ['Open', 'High', 'Low', 'Close']
         for col in price_columns:
             if col in df.columns:
-                df[f'{col}_norm'] = (df[col] - df[col].rolling(50).mean()) / df[col].rolling(50).std()
+                rolling_mean = df[col].rolling(50).mean()
+                rolling_std = df[col].rolling(50).std()
+                # Избегаем деления на ноль
+                rolling_std = rolling_std.replace(0, 1.0)  # Заменяем 0 на 1
+                rolling_std = rolling_std.fillna(1.0)  # Заполняем NaN
+                df[f'{col}_norm'] = (df[col] - rolling_mean) / rolling_std
+                # Заполняем NaN в нормализованных данных
+                df[f'{col}_norm'] = df[f'{col}_norm'].fillna(0.0)
         
         return df
     

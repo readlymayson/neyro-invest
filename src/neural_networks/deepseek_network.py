@@ -154,11 +154,16 @@ class DeepSeekNetwork(BaseNeuralNetwork):
             Подготовленные данные для анализа
         """
         try:
+            logger.debug(f"DeepSeek: Подготовка данных для символа {symbol}")
+            logger.debug(f"Исходные данные: {data.shape}, колонки: {list(data.columns)}")
+            
             # Получение последних данных
             recent_data = data.tail(self.analysis_window).copy()
+            logger.debug(f"Последние {self.analysis_window} строк: {recent_data.shape}")
             
             # Расчет технических индикаторов
             recent_data = self.prepare_features(recent_data)
+            logger.debug(f"После расчета признаков: {recent_data.shape}, колонки: {list(recent_data.columns)}")
             
             # Подготовка статистики
             stats = {
@@ -177,6 +182,10 @@ class DeepSeekNetwork(BaseNeuralNetwork):
                 'technical_indicators': self._extract_technical_indicators(recent_data),
                 'time_series': recent_data[target].tail(10).tolist()
             }
+            
+            logger.debug(f"Статистика цен для {symbol}: {stats['price_stats']}")
+            logger.debug(f"Статистика объемов для {symbol}: {stats['volume_stats']}")
+            logger.debug(f"Технические индикаторы для {symbol}: {stats['technical_indicators']}")
             
             # Добавление портфельных данных
             if portfolio_manager:
@@ -260,32 +269,60 @@ class DeepSeekNetwork(BaseNeuralNetwork):
         indicators = {}
         
         try:
+            # Логирование доступных колонок
+            logger.debug(f"Доступные колонки в данных: {list(data.columns)}")
+            logger.debug(f"Размер данных: {data.shape}")
+            logger.debug(f"Последние 3 строки данных:\n{data.tail(3)}")
+            
             # RSI
             if 'RSI' in data.columns:
-                indicators['rsi'] = float(data['RSI'].iloc[-1])
-                indicators['rsi_overbought'] = bool(data['RSI'].iloc[-1] > 70)
-                indicators['rsi_oversold'] = bool(data['RSI'].iloc[-1] < 30)
+                rsi_value = float(data['RSI'].iloc[-1])
+                indicators['rsi'] = rsi_value
+                indicators['rsi_overbought'] = bool(rsi_value > 70)
+                indicators['rsi_oversold'] = bool(rsi_value < 30)
+                logger.debug(f"RSI: {rsi_value}")
+            else:
+                logger.warning("Колонка RSI не найдена в данных")
             
             # MACD
             if 'MACD' in data.columns and 'MACD_Signal' in data.columns:
-                indicators['macd'] = float(data['MACD'].iloc[-1])
-                indicators['macd_signal'] = float(data['MACD_Signal'].iloc[-1])
-                indicators['macd_bullish'] = bool(data['MACD'].iloc[-1] > data['MACD_Signal'].iloc[-1])
+                macd_value = float(data['MACD'].iloc[-1])
+                macd_signal_value = float(data['MACD_Signal'].iloc[-1])
+                indicators['macd'] = macd_value
+                indicators['macd_signal'] = macd_signal_value
+                indicators['macd_bullish'] = bool(macd_value > macd_signal_value)
+                logger.debug(f"MACD: {macd_value}, Signal: {macd_signal_value}")
+            else:
+                logger.warning("Колонки MACD или MACD_Signal не найдены в данных")
             
             # Bollinger Bands
             if all(col in data.columns for col in ['BB_Upper', 'BB_Middle', 'BB_Lower']):
                 current_price = data['Close'].iloc[-1]
-                indicators['bb_position'] = (current_price - data['BB_Lower'].iloc[-1]) / (data['BB_Upper'].iloc[-1] - data['BB_Lower'].iloc[-1])
+                bb_upper = data['BB_Upper'].iloc[-1]
+                bb_lower = data['BB_Lower'].iloc[-1]
+                indicators['bb_position'] = (current_price - bb_lower) / (bb_upper - bb_lower)
                 indicators['bb_squeeze'] = data['BB_Width'].iloc[-1] if 'BB_Width' in data.columns else 0
+                logger.debug(f"BB Position: {indicators['bb_position']}, Price: {current_price}, Upper: {bb_upper}, Lower: {bb_lower}")
+            else:
+                logger.warning("Колонки Bollinger Bands не найдены в данных")
             
             # Moving Averages
             if 'SMA_20' in data.columns and 'SMA_50' in data.columns:
-                indicators['sma_trend'] = bool(data['SMA_20'].iloc[-1] > data['SMA_50'].iloc[-1])
-                indicators['price_above_sma20'] = bool(data['Close'].iloc[-1] > data['SMA_20'].iloc[-1])
-                indicators['price_above_sma50'] = bool(data['Close'].iloc[-1] > data['SMA_50'].iloc[-1])
+                sma20_value = data['SMA_20'].iloc[-1]
+                sma50_value = data['SMA_50'].iloc[-1]
+                current_price = data['Close'].iloc[-1]
+                indicators['sma_trend'] = bool(sma20_value > sma50_value)
+                indicators['price_above_sma20'] = bool(current_price > sma20_value)
+                indicators['price_above_sma50'] = bool(current_price > sma50_value)
+                logger.debug(f"SMA20: {sma20_value}, SMA50: {sma50_value}, Price: {current_price}")
+            else:
+                logger.warning("Колонки SMA_20 или SMA_50 не найдены в данных")
+            
+            logger.debug(f"Извлеченные индикаторы: {indicators}")
             
         except Exception as e:
             logger.error(f"Ошибка извлечения технических индикаторов: {e}")
+            logger.error(f"Данные: {data.head() if not data.empty else 'Пустые данные'}")
         
         return indicators
     
@@ -650,6 +687,11 @@ class DeepSeekNetwork(BaseNeuralNetwork):
         Returns:
             Промпт для API
         """
+        # Логирование данных, которые отправляются в API
+        logger.debug(f"DeepSeek промпт - данные цен: {data['price_stats']}")
+        logger.debug(f"DeepSeek промпт - данные объемов: {data['volume_stats']}")
+        logger.debug(f"DeepSeek промпт - технические индикаторы: {data['technical_indicators']}")
+        
         prompt = f"""
 Ты - эксперт по техническому анализу. На основе текущих данных дай краткий торговый сигнал:
 
@@ -670,6 +712,7 @@ class DeepSeekNetwork(BaseNeuralNetwork):
     "reasoning": "краткое объяснение"
 }}
 """
+        logger.debug(f"Полный промпт для DeepSeek:\n{prompt}")
         return prompt
     
     def _calculate_signal_strength(self, prediction: Dict[str, Any]) -> float:

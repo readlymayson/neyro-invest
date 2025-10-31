@@ -42,12 +42,19 @@ from src.utils.interactive_console import start_interactive_console
 
 def setup_logging(config_path: str = "config/main.yaml"):
     """
-    Настройка логирования
+    Настройка логирования с созданием уникальных файлов для каждой сессии
     """
     try:
+        from datetime import datetime
+        
         # Создание директории логов
         logs_dir = Path("logs")
         logs_dir.mkdir(exist_ok=True)
+        
+        # Создание поддиректории для текущей сессии
+        session_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        session_dir = logs_dir / f"session_{session_timestamp}"
+        session_dir.mkdir(exist_ok=True)
         
         # Удаление старых обработчиков
         logger.remove()
@@ -60,11 +67,9 @@ def setup_logging(config_path: str = "config/main.yaml"):
             colorize=True
         )
         
-        # Настройка файлового вывода
+        # Настройка основного файла логов для сессии
         logger.add(
-            logs_dir / "investment_system.log",
-            rotation="1 day",
-            retention="30 days",
+            session_dir / "investment_system.log",
             level="DEBUG",
             format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}",
             encoding="utf-8"
@@ -72,9 +77,7 @@ def setup_logging(config_path: str = "config/main.yaml"):
         
         # Настройка отдельных логов для компонентов
         logger.add(
-            logs_dir / "trading.log",
-            rotation="1 day",
-            retention="30 days",
+            session_dir / "trading.log",
             level="INFO",
             format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
             filter=lambda record: "trading" in record["name"].lower(),
@@ -82,16 +85,42 @@ def setup_logging(config_path: str = "config/main.yaml"):
         )
         
         logger.add(
-            logs_dir / "neural_networks.log",
-            rotation="1 day",
-            retention="30 days",
+            session_dir / "neural_networks.log",
             level="INFO",
             format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
             filter=lambda record: "neural" in record["name"].lower(),
             encoding="utf-8"
         )
         
-        logger.info("Логирование настроено")
+        # Настройка логов для GUI приложения
+        logger.add(
+            session_dir / "gui_application.log",
+            level="INFO",
+            format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
+            filter=lambda record: "gui" in record["name"].lower() or "web" in record["name"].lower(),
+            encoding="utf-8"
+        )
+        
+        # Настройка логов для бэктестинга
+        logger.add(
+            session_dir / "backtesting.log",
+            level="INFO",
+            format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
+            filter=lambda record: "backtest" in record["name"].lower(),
+            encoding="utf-8"
+        )
+        
+        # Настройка логов для веб-запуска
+        logger.add(
+            session_dir / "web_launcher.log",
+            level="INFO",
+            format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
+            filter=lambda record: "web_launcher" in record["name"].lower(),
+            encoding="utf-8"
+        )
+        
+        logger.info(f"Логирование настроено для сессии {session_timestamp}")
+        logger.info(f"Файлы логов сохраняются в: {session_dir}")
         
     except Exception as e:
         print(f"Ошибка настройки логирования: {e}")
@@ -155,12 +184,12 @@ async def run_training_mode(config_path: str):
         include_news_in_training = news_config.get('include_news_in_training', False)
         
         if include_news_in_training:
-            # При обучении используются новостные данные за ограниченный период (30 дней)
-            news_data = historical_data.get('news', {})
+            # При обучении используем новостные данные расширенного периода (training_news_days)
+            news_data = historical_data.get('news_training', {}) or historical_data.get('news', {})
             if news_data:
-                logger.info(f"Новостные данные включены в обучение для {len(news_data)} символов (ограниченный период)")
+                logger.info(f"Новостные данные включены в обучение для {len(news_data)} символов (расширенный период)")
             else:
-                logger.info("Новостные данные не доступны для обучения")
+                logger.warning("Новостные данные для обучения недоступны, обучение продолжится без новостей")
             await system.network_manager.train_models(historical_data, news_data=news_data)
         else:
             # При обучении новостные данные НЕ используются - только исторические данные за 1 год
@@ -377,8 +406,8 @@ def main():
     
     parser.add_argument(
         '--config',
-        default='config/tbank_sandbox.yaml',
-        help='Путь к конфигурационному файлу (по умолчанию: config/tbank_sandbox.yaml)'
+        default='config/main.yaml',
+        help='Путь к конфигурационному файлу (по умолчанию: config/main.yaml)'
     )
     
     parser.add_argument(
@@ -419,20 +448,14 @@ def main():
     args = parser.parse_args()
     
     # Интерактивный выбор конфигурации
-    if args.select_config or not args.config:
-        # Используем тестовую конфигурацию по умолчанию для быстрого старта
-        if not args.select_config and not args.config:
-            print("✅ Используется тестовая конфигурация по умолчанию (быстрый режим)")
-            print("   Для выбора другой конфигурации используйте: python run.py --select-config")
-            args.config = "config/test_config.yaml"
+    if args.select_config:
+        selector = ConfigSelector()
+        selected_config = selector.select_config()
+        if selected_config:
+            args.config = selected_config
         else:
-            selector = ConfigSelector()
-            selected_config = selector.select_config()
-            if selected_config:
-                args.config = selected_config
-            else:
-                print("❌ Конфигурация не выбрана. Использую тестовую конфигурацию.")
-                args.config = "config/test_config.yaml"
+            print("❌ Конфигурация не выбрана. Использую config/main.yaml по умолчанию.")
+            args.config = "config/main.yaml"
     
     # Настройка логирования
     setup_logging(args.config)

@@ -111,20 +111,20 @@ class RussianDataProvider:
             np.random.seed(hash(symbol) % 2**32)  # Для воспроизводимости
             
             # Создаем более реалистичное случайное блуждание цен
-            returns = np.random.normal(0, 0.03, len(dates))  # 3% волатильность
+            returns = np.random.normal(0, 0.02, len(dates))  # 2% волатильность
             prices = [base_price]
             
             # Добавляем тренды и циклы для более реалистичных данных
-            trend = np.linspace(0, 0.1, len(dates))  # Небольшой восходящий тренд
-            cycle = 0.05 * np.sin(2 * np.pi * np.arange(len(dates)) / 30)  # Месячный цикл
+            trend = np.linspace(0, 0.005, len(dates))  # Очень небольшой восходящий тренд (0.5%)
+            cycle = 0.005 * np.sin(2 * np.pi * np.arange(len(dates)) / 30)  # Небольшой месячный цикл (0.5%)
             
             for i in range(1, len(dates)):
                 # Комбинируем случайное блуждание, тренд и цикл
                 total_return = returns[i] + trend[i] + cycle[i]
                 new_price = prices[-1] * (1 + total_return)
                 # Ограничиваем разумными пределами
-                new_price = max(new_price, base_price * 0.3)  # Минимум 30%
-                new_price = min(new_price, base_price * 3.0)  # Максимум 300%
+                new_price = max(new_price, base_price * 0.7)  # Минимум 70%
+                new_price = min(new_price, base_price * 1.5)  # Максимум 150%
                 prices.append(new_price)
             
             # Создаем DataFrame

@@ -917,13 +917,32 @@ class TradingEngine:
                 # Если проверки отключены, используем старую логику
                 return await self._calculate_position_size_legacy(signal)
             
+            # Получение реального баланса из T-Bank (если доступен)
+            real_balance = None
+            if self.broker_type in ['tinkoff', 'tbank'] and self.tbank_broker:
+                try:
+                    balance_info = await self.tbank_broker.get_account_balance()
+                    real_balance = balance_info.get('rub', 0.0)
+                    if real_balance > 0:
+                        logger.debug(f"Реальный баланс T-Bank: {real_balance:.2f} ₽")
+                except Exception as e:
+                    logger.warning(f"Не удалось получить реальный баланс T-Bank: {e}")
+            
             # Получение текущего капитала и позиций
             portfolio_value = await self.portfolio_manager.get_portfolio_value()
             positions = self.portfolio_manager.positions
             
+            # Используем реальный баланс, если доступен, иначе портфель
+            available_cash = real_balance if real_balance is not None and real_balance > 0 else portfolio_value
+            if real_balance is not None and real_balance > 0 and real_balance < portfolio_value:
+                logger.warning(
+                    f"⚠️ Реальный баланс T-Bank ({real_balance:.2f} ₽) меньше значения портфеля ({portfolio_value:.2f} ₽). "
+                    f"Используем реальный баланс для расчета."
+                )
+            
             # Проверка максимального общего воздействия
             current_invested_value = sum(pos.market_value for pos in positions.values())
-            max_allowed_investment = portfolio_value * self.max_total_exposure
+            max_allowed_investment = available_cash * self.max_total_exposure
             
             if current_invested_value >= max_allowed_investment:
                 logger.warning(f"❌ {signal.symbol}: Превышен лимит общего воздействия: {current_invested_value:.2f} ₽ >= {max_allowed_investment:.2f} ₽")
@@ -936,8 +955,8 @@ class TradingEngine:
                 return 0.0
             
             # Расчет максимально допустимого размера позиции
-            max_position_value = portfolio_value * self.max_position_size
-            min_position_value = portfolio_value * self.min_position_size
+            max_position_value = available_cash * self.max_position_size
+            min_position_value = available_cash * self.min_position_size
             
             # Проверка существующей позиции по символу
             existing_position_value = 0.0
@@ -945,10 +964,23 @@ class TradingEngine:
                 existing_position_value = positions[signal.symbol].market_value
             
             # Расчет доступного размера для новой позиции
+            # Ограничиваем доступными средствами (реальный баланс)
+            max_allowed_by_balance = available_cash - current_invested_value
+            
             available_for_position = min(
                 max_position_value - existing_position_value,  # Не превышать лимит на позицию
-                max_allowed_investment - current_invested_value  # Не превышать общий лимит
+                max_allowed_investment - current_invested_value,  # Не превышать общий лимит
+                max_allowed_by_balance  # Не превышать реальный баланс
             )
+            
+            # Дополнительная проверка реального баланса
+            if real_balance is not None and real_balance > 0:
+                if available_for_position > real_balance:
+                    logger.warning(
+                        f"⚠️ {signal.symbol}: Рассчитанный размер позиции ({available_for_position:.2f} ₽) "
+                        f"превышает реальный баланс ({real_balance:.2f} ₽). Ограничиваем балансом."
+                    )
+                    available_for_position = max(0, real_balance)
             
             # Проверка минимального размера
             if available_for_position < min_position_value:
@@ -1188,6 +1220,38 @@ class TradingEngine:
                 logger.error("T-Bank брокер не инициализирован")
                 order.status = OrderStatus.REJECTED
                 return
+            
+            # Проверка баланса перед размещением ордера на покупку
+            if order.side == OrderSide.BUY:
+                try:
+                    balance_info = await self.tbank_broker.get_account_balance()
+                    real_balance = balance_info.get('rub', 0.0)
+                    
+                    # Получение текущей цены для расчета стоимости ордера
+                    current_price = await self._get_current_price(order.symbol)
+                    if current_price > 0:
+                        # Получение размера лота
+                        lot_size = self.tbank_broker.lot_sizes.get(order.symbol, 1)
+                        order_cost = order.quantity * lot_size * current_price
+                        
+                        # Добавляем запас на комиссию (0.05%)
+                        order_cost_with_commission = order_cost * 1.0005
+                        
+                        if order_cost_with_commission > real_balance:
+                            logger.warning(
+                                f"❌ {order.symbol}: Недостаточно баланса для ордера. "
+                                f"Нужно: {order_cost_with_commission:.2f} ₽, доступно: {real_balance:.2f} ₽"
+                            )
+                            order.status = OrderStatus.REJECTED
+                            return
+                        else:
+                            logger.debug(
+                                f"✅ {order.symbol}: Баланс достаточен. "
+                                f"Ордер: {order_cost_with_commission:.2f} ₽, баланс: {real_balance:.2f} ₽"
+                            )
+                except Exception as e:
+                    logger.warning(f"Не удалось проверить баланс перед размещением ордера: {e}")
+                    # Продолжаем выполнение, но логируем предупреждение
             
             # Конвертация количества в целое (лоты)
             lots = int(order.quantity)

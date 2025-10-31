@@ -15,8 +15,8 @@ if exist venv\Scripts\activate.bat (
     exit /b 1
 )
 
-REM Запуск в интерактивном режиме (по умолчанию)
-python run.py
+REM Запуск в интерактивном режиме (по умолчанию) с конфигурацией config\main.yaml
+python run.py --config config\main.yaml
 
 echo.
 echo ========================================
