@@ -415,15 +415,21 @@ class DataProvider:
             
             # Определяем период для новостей
             days_for_analysis = news_config.get('days_back', 14)  # Для анализа
-            days_for_training = news_config.get('training_news_days', 30)  # Для обучения
+            days_for_training = news_config.get('training_news_days', 180)  # Для обучения
             
             # Получение новостей для анализа (2 недели)
             analysis_news_data = await self.news_provider.get_all_symbols_news(self.symbols, days=days_for_analysis)
             
-            # Получение новостей для обучения (ограниченный период)
+            # Получение новостей для обучения из хранилища с дополнением недостающих данных
             training_news_data = None
             if news_config.get('include_news_in_training', False):
-                training_news_data = await self.news_provider.get_all_symbols_news(self.symbols, days=days_for_training)
+                # Используем метод get_training_news, который загружает из хранилища и дополняет недостающие данные
+                if hasattr(self.news_provider, 'get_training_news'):
+                    training_news_data = await self.news_provider.get_training_news(self.symbols, days_for_training)
+                else:
+                    # Fallback на старый метод
+                    training_news_data = await self.news_provider.get_all_symbols_news(self.symbols, days=days_for_training)
+                
                 if training_news_data:
                     self.news_training_data = training_news_data
                     logger.info(f"Загружены новостные данные для обучения: {days_for_training} дней")
@@ -441,9 +447,33 @@ class DataProvider:
                                f"тренд: {news_summary.get('recent_trend', 'neutral')}")
             else:
                 logger.warning("Не удалось загрузить новостные данные")
+            
+            # Архивация устаревших данных
+            await self._archive_old_news(days_for_training)
                 
         except Exception as e:
             logger.error(f"Ошибка загрузки новостных данных: {e}")
+    
+    async def _archive_old_news(self, training_days: int):
+        """
+        Архивация новостей старше training_days
+        
+        Args:
+            training_days: Количество дней для обучения (данные старше архивируются)
+        """
+        try:
+            if not self.news_provider or not hasattr(self.news_provider, 'storage') or not self.news_provider.storage:
+                return
+            
+            from datetime import date, timedelta
+            cutoff_date = date.today() - timedelta(days=training_days)
+            
+            archived_count = self.news_provider.storage.archive_old_news(cutoff_date)
+            if archived_count > 0:
+                logger.info(f"Заархивировано {archived_count} устаревших новостей")
+                
+        except Exception as e:
+            logger.warning(f"Ошибка архивации устаревших новостей: {e}")
     
     async def update_market_data(self):
         """
@@ -480,6 +510,20 @@ class DataProvider:
                         # Ограничение размера данных
                         if len(self.market_data[symbol]) > 1000:
                             self.market_data[symbol] = self.market_data[symbol].tail(1000)
+            
+            # Обновление новостных данных (если включено)
+            if self.news_provider:
+                try:
+                    news_config = self.config.get('news', {})
+                    if news_config.get('enabled', True):
+                        # Обновляем новости для анализа (короткий период)
+                        days_for_analysis = news_config.get('days_back', 14)
+                        updated_news = await self.news_provider.get_all_symbols_news(self.symbols, days=days_for_analysis)
+                        if updated_news:
+                            self.news_data = updated_news
+                            logger.debug(f"Обновлены новостные данные для анализа: {len(updated_news)} символов")
+                except Exception as e:
+                    logger.warning(f"Ошибка обновления новостных данных: {e}")
             
             self.last_update = datetime.now()
             logger.debug(f"Данные обновлены: {len(self.realtime_data)} инструментов")

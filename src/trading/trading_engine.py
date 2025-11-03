@@ -274,12 +274,13 @@ class TradingEngine:
         self.portfolio_manager = portfolio_manager
         logger.debug("Компоненты системы установлены в торговый движок")
     
-    async def update_predictions(self, predictions: Dict[str, Any]):
+    async def update_predictions(self, predictions: Dict[str, Any], skip_cooldown_check: bool = False):
         """
         Обновление предсказаний от нейросетей для всех символов
         
         Args:
             predictions: Предсказания от нейросетей по всем символам
+            skip_cooldown_check: Пропустить проверку кулдаунов (используется при анализе)
         """
         async with self._signals_lock:
             try:
@@ -313,8 +314,8 @@ class TradingEngine:
                             # Создание торгового сигнала
                             signal = self._create_trading_signal(prediction, model_name)
                             if signal:
-                                # Фильтрация сигналов на кулдауне перед сохранением
-                                if self.filter_cooldown_signals and not await self._can_execute_signal_by_type(signal):
+                                # Фильтрация сигналов на кулдауне перед сохранением (пропускается при анализе)
+                                if self.filter_cooldown_signals and not skip_cooldown_check and not await self._can_execute_signal_by_type(signal):
                                     logger.debug(f"🚫 {signal.symbol}: Сигнал {signal.signal} отфильтрован на кулдауне при создании")
                                     continue
                                 
@@ -330,8 +331,8 @@ class TradingEngine:
                             'ensemble'
                         )
                         if ensemble_signal:
-                            # Фильтрация сигналов на кулдауне перед сохранением
-                            if self.filter_cooldown_signals and not await self._can_execute_signal_by_type(ensemble_signal):
+                            # Фильтрация сигналов на кулдауне перед сохранением (пропускается при анализе)
+                            if self.filter_cooldown_signals and not skip_cooldown_check and not await self._can_execute_signal_by_type(ensemble_signal):
                                 logger.debug(f"🚫 {ensemble_signal.symbol}: Ансамблевый сигнал {ensemble_signal.signal} отфильтрован на кулдауне при создании")
                                 continue
                             
@@ -920,6 +921,13 @@ class TradingEngine:
                 # Если проверки отключены, используем старую логику
                 return await self._calculate_position_size_legacy(signal)
             
+            # Принудительная синхронизация с T-Bank перед расчетом (если доступен)
+            if self.broker_type in ['tinkoff', 'tbank'] and self.tbank_broker:
+                try:
+                    await self.portfolio_manager.sync_with_tbank()
+                except Exception as e:
+                    logger.warning(f"Не удалось синхронизировать портфель с T-Bank перед расчетом: {e}")
+            
             # Получение реального баланса из T-Bank (если доступен)
             real_balance = None
             if self.broker_type in ['tinkoff', 'tbank'] and self.tbank_broker:
@@ -931,24 +939,56 @@ class TradingEngine:
                 except Exception as e:
                     logger.warning(f"Не удалось получить реальный баланс T-Bank: {e}")
             
-            # Получение текущего капитала и позиций
+            # Получение актуальных данных портфеля после синхронизации
             portfolio_value = await self.portfolio_manager.get_portfolio_value()
+            cash_balance = self.portfolio_manager.cash_balance
             positions = self.portfolio_manager.positions
+            current_invested_value = sum(pos.market_value for pos in positions.values())
             
-            # Используем реальный баланс, если доступен, иначе портфель
-            available_cash = real_balance if real_balance is not None and real_balance > 0 else portfolio_value
-            if real_balance is not None and real_balance > 0 and real_balance < portfolio_value:
-                logger.warning(
-                    f"⚠️ Реальный баланс T-Bank ({real_balance:.2f} ₽) меньше значения портфеля ({portfolio_value:.2f} ₽). "
-                    f"Используем реальный баланс для расчета."
-                )
+            # Детальное логирование балансов и позиций
+            logger.debug(
+                f"📊 Состояние портфеля для расчета позиции {signal.symbol}:\n"
+                f"  - Наличные средства (cash_balance): {cash_balance:.2f} ₽\n"
+                f"  - Стоимость позиций (invested_value): {current_invested_value:.2f} ₽\n"
+                f"  - Общая стоимость портфеля: {portfolio_value:.2f} ₽\n"
+                f"  - Реальный баланс T-Bank: {real_balance:.2f} ₽" if real_balance is not None else "  - Реальный баланс T-Bank: недоступен"
+            )
+            
+            # Проверка соответствия наличных средств
+            if real_balance is not None and real_balance > 0:
+                # Сравниваем реальный баланс с наличными средствами портфеля (не с общей стоимостью!)
+                balance_diff = abs(real_balance - cash_balance)
+                balance_diff_percent = (balance_diff / max(real_balance, cash_balance) * 100) if max(real_balance, cash_balance) > 0 else 0
+                
+                if balance_diff > 100 or balance_diff_percent > 5:  # Расхождение более 100₽ или 5%
+                    logger.warning(
+                        f"⚠️ Обнаружено расхождение между реальным балансом T-Bank и наличными средствами портфеля:\n"
+                        f"  - Реальный баланс T-Bank: {real_balance:.2f} ₽\n"
+                        f"  - Наличные средства портфеля: {cash_balance:.2f} ₽\n"
+                        f"  - Разница: {balance_diff:.2f} ₽ ({balance_diff_percent:.2f}%)\n"
+                        f"  - Используем реальный баланс T-Bank для расчета."
+                    )
+                    cash_balance = real_balance
+                else:
+                    logger.debug(
+                        f"✅ Балансы синхронизированы: реальный баланс ({real_balance:.2f} ₽) "
+                        f"соответствует наличным средствам ({cash_balance:.2f} ₽)"
+                    )
+            
+            # Используем синхронизированный баланс наличных для расчетов
+            available_cash = cash_balance
             
             # Проверка максимального общего воздействия
-            current_invested_value = sum(pos.market_value for pos in positions.values())
-            max_allowed_investment = available_cash * self.max_total_exposure
+            # Лимит рассчитывается от общей стоимости портфеля (наличные + позиции), а не от наличных
+            max_allowed_investment = portfolio_value * self.max_total_exposure
             
             if current_invested_value >= max_allowed_investment:
-                logger.warning(f"❌ {signal.symbol}: Превышен лимит общего воздействия: {current_invested_value:.2f} ₽ >= {max_allowed_investment:.2f} ₽")
+                logger.warning(
+                    f"❌ {signal.symbol}: Превышен лимит общего воздействия:\n"
+                    f"  - Текущее общее воздействие: {current_invested_value:.2f} ₽\n"
+                    f"  - Максимально допустимое: {max_allowed_investment:.2f} ₽ ({self.max_total_exposure*100:.1f}% от портфеля {portfolio_value:.2f} ₽)\n"
+                    f"  - Превышение: {current_invested_value - max_allowed_investment:.2f} ₽"
+                )
                 return 0.0
             
             # Получение текущей цены
@@ -956,6 +996,12 @@ class TradingEngine:
             if current_price <= 0:
                 logger.warning(f"❌ {signal.symbol}: Не удалось получить текущую цену")
                 return 0.0
+            
+            # Получение размера лота для символа
+            lot_size = 1  # По умолчанию
+            if self.broker_type in ['tinkoff', 'tbank'] and self.tbank_broker:
+                lot_size = self.tbank_broker.get_lot_size(signal.symbol)
+                logger.debug(f"{signal.symbol}: Размер лота: {lot_size}")
             
             # Расчет максимально допустимого размера позиции
             max_position_value = available_cash * self.max_position_size
@@ -966,42 +1012,86 @@ class TradingEngine:
             if signal.symbol in positions:
                 existing_position_value = positions[signal.symbol].market_value
             
-            # Расчет доступного размера для новой позиции
-            # Ограничиваем доступными средствами (реальный баланс)
-            max_allowed_by_balance = available_cash - current_invested_value
+            # Доступная стоимость для новой позиции (в рублях)
+            # Учитываем существующую позицию по символу
+            available_position_value = max_position_value - existing_position_value
             
-            available_for_position = min(
-                max_position_value - existing_position_value,  # Не превышать лимит на позицию
-                max_allowed_investment - current_invested_value,  # Не превышать общий лимит
-                max_allowed_by_balance  # Не превышать реальный баланс
+            # Расчет доступного размера для новой позиции с учетом всех ограничений
+            available_for_position_value = min(
+                available_position_value,  # Не превышать лимит на позицию
+                max_allowed_investment - current_invested_value,  # Не превышать общий лимит воздействия
+                available_cash  # Не превышать доступные наличные средства
             )
+            
+            # Убеждаемся, что значение неотрицательное
+            available_for_position_value = max(0, available_for_position_value)
             
             # Дополнительная проверка реального баланса
             if real_balance is not None and real_balance > 0:
-                if available_for_position > real_balance:
+                if available_for_position_value > real_balance:
                     logger.warning(
-                        f"⚠️ {signal.symbol}: Рассчитанный размер позиции ({available_for_position:.2f} ₽) "
-                        f"превышает реальный баланс ({real_balance:.2f} ₽). Ограничиваем балансом."
+                        f"⚠️ {signal.symbol}: Рассчитанный размер позиции ({available_for_position_value:.2f} ₽) "
+                        f"превышает доступный наличный баланс ({real_balance:.2f} ₽). Ограничиваем балансом."
                     )
-                    available_for_position = max(0, real_balance)
+                    available_for_position_value = max(0, real_balance)
+            
+            # Детальное логирование расчета лимитов
+            logger.debug(
+                f"📊 Расчет лимитов для {signal.symbol}:\n"
+                f"  - Максимальный размер позиции: {max_position_value:.2f} ₽ ({self.max_position_size*100:.1f}% от наличных)\n"
+                f"  - Минимальный размер позиции: {min_position_value:.2f} ₽ ({self.min_position_size*100:.1f}% от наличных)\n"
+                f"  - Текущая позиция по символу: {existing_position_value:.2f} ₽\n"
+                f"  - Максимальное общее воздействие: {max_allowed_investment:.2f} ₽ ({self.max_total_exposure*100:.1f}% от портфеля)\n"
+                f"  - Текущее общее воздействие: {current_invested_value:.2f} ₽\n"
+                f"  - Доступно для новой позиции: {available_for_position_value:.2f} ₽"
+            )
             
             # Проверка минимального размера
-            if available_for_position < min_position_value:
-                logger.warning(f"❌ {signal.symbol}: Недостаточно средств для минимальной позиции: {available_for_position:.2f} ₽ < {min_position_value:.2f} ₽")
+            if available_for_position_value < min_position_value:
+                logger.warning(f"❌ {signal.symbol}: Недостаточно средств для минимальной позиции: {available_for_position_value:.2f} ₽ < {min_position_value:.2f} ₽")
                 return 0.0
             
-            # Расчет количества акций
-            quantity = available_for_position / current_price
-            quantity = int(quantity)
+            # Расчет количества ШТУК с учетом доступной стоимости
+            shares_quantity = available_for_position_value / current_price
+            shares_quantity = int(shares_quantity)
+            
+            # Конвертация в лоты с учетом размера лота
+            if lot_size > 1:
+                # Округляем вниз до целого количества лотов
+                lots_quantity = shares_quantity // lot_size
+                # Пересчитываем реальное количество штук
+                shares_quantity = lots_quantity * lot_size
+            else:
+                lots_quantity = shares_quantity
+            
+            # Финальная проверка: реальная стоимость не должна превышать лимит
+            real_position_value = shares_quantity * current_price
+            if real_position_value > max_position_value:
+                # Корректируем до максимально допустимого
+                max_shares = int((max_position_value - existing_position_value) / current_price)
+                if lot_size > 1:
+                    max_shares = (max_shares // lot_size) * lot_size
+                shares_quantity = max_shares
+                lots_quantity = shares_quantity // lot_size if lot_size > 1 else shares_quantity
+                real_position_value = shares_quantity * current_price
+                logger.warning(
+                    f"⚠️ {signal.symbol}: Размер позиции скорректирован до лимита: "
+                    f"{lots_quantity} лотов ({shares_quantity} штук) на {real_position_value:.2f} ₽ "
+                    f"(лимит: {max_position_value:.2f} ₽, размер лота: {lot_size})"
+                )
             
             # Минимальная проверка
-            if quantity < 1:
-                logger.warning(f"❌ {signal.symbol}: Недостаточно средств для покупки (нужно минимум {current_price:.2f} ₽)")
+            if shares_quantity < lot_size:
+                logger.warning(f"❌ {signal.symbol}: Недостаточно средств для покупки (нужно минимум {lot_size * current_price:.2f} ₽ для 1 лота)")
                 return 0.0
             
-            position_value = quantity * current_price
-            logger.info(f"✅ {signal.symbol}: Размер позиции для покупки: {quantity} лотов на {position_value:.2f} ₽ (лимит: {max_position_value:.2f} ₽)")
-            return float(quantity)
+            # Возвращаем количество ЛОТОВ (для совместимости с существующим кодом)
+            logger.info(
+                f"✅ {signal.symbol}: Размер позиции для покупки: {lots_quantity} лотов "
+                f"({shares_quantity} штук) на {real_position_value:.2f} ₽ "
+                f"(лимит: {max_position_value:.2f} ₽, размер лота: {lot_size})"
+            )
+            return float(lots_quantity)
             
         except Exception as e:
             logger.error(f"Ошибка расчета размера позиции: {e}")
@@ -1234,24 +1324,54 @@ class TradingEngine:
                     current_price = await self._get_current_price(order.symbol)
                     if current_price > 0:
                         # Получение размера лота
-                        lot_size = self.tbank_broker.lot_sizes.get(order.symbol, 1)
-                        order_cost = order.quantity * lot_size * current_price
+                        lot_size = self.tbank_broker.get_lot_size(order.symbol)
+                        real_shares = int(order.quantity) * lot_size
+                        order_cost = real_shares * current_price
                         
                         # Добавляем запас на комиссию (0.05%)
                         order_cost_with_commission = order_cost * 1.0005
                         
                         if order_cost_with_commission > real_balance:
-                            logger.warning(
+                            logger.error(
                                 f"❌ {order.symbol}: Недостаточно баланса для ордера. "
                                 f"Нужно: {order_cost_with_commission:.2f} ₽, доступно: {real_balance:.2f} ₽"
                             )
                             order.status = OrderStatus.REJECTED
                             return
-                        else:
-                            logger.debug(
-                                f"✅ {order.symbol}: Баланс достаточен. "
-                                f"Ордер: {order_cost_with_commission:.2f} ₽, баланс: {real_balance:.2f} ₽"
-                            )
+                        
+                        # Дополнительная проверка лимита размера позиции
+                        if self.position_size_check:
+                            try:
+                                # Получение портфеля для расчета лимита
+                                portfolio_value = await self.portfolio_manager.get_portfolio_value()
+                                max_position_value = portfolio_value * self.max_position_size
+                                
+                                # Проверка существующей позиции
+                                existing_position_value = 0.0
+                                if order.symbol in self.portfolio_manager.positions:
+                                    existing_position_value = self.portfolio_manager.positions[order.symbol].market_value
+                                
+                                # Проверка, что новая позиция не превысит лимит
+                                total_position_value = existing_position_value + order_cost
+                                if total_position_value > max_position_value:
+                                    logger.error(
+                                        f"❌ {order.symbol}: Ордер отклонен - превышен лимит размера позиции. "
+                                        f"Текущая позиция: {existing_position_value:.2f} ₽, "
+                                        f"новая позиция: {order_cost:.2f} ₽, "
+                                        f"сумма: {total_position_value:.2f} ₽, "
+                                        f"лимит: {max_position_value:.2f} ₽ "
+                                        f"({self.max_position_size*100:.1f}% от портфеля, размер лота: {lot_size})"
+                                    )
+                                    order.status = OrderStatus.REJECTED
+                                    return
+                            except Exception as e:
+                                logger.warning(f"Ошибка проверки лимита размера позиции: {e}")
+                        
+                        logger.debug(
+                            f"✅ {order.symbol}: Баланс достаточен. "
+                            f"Ордер: {order_cost_with_commission:.2f} ₽ ({int(order.quantity)} лотов = {real_shares} штук), "
+                            f"баланс: {real_balance:.2f} ₽"
+                        )
                 except Exception as e:
                     logger.warning(f"Не удалось проверить баланс перед размещением ордера: {e}")
                     # Продолжаем выполнение, но логируем предупреждение

@@ -42,6 +42,7 @@ models/*.pkl
 models/*.h5
 *.pkl
 *.h5
+/reports/
 
 # Environment files
 .env

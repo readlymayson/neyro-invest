@@ -7,6 +7,7 @@ import asyncio
 import sys
 import os
 import argparse
+import atexit
 from pathlib import Path
 from datetime import datetime
 from loguru import logger
@@ -76,12 +77,14 @@ def setup_logging(config_path: str = "config/main.yaml"):
         )
         
         # Настройка отдельных логов для компонентов
+        # Используем delay=True для отложенного создания файлов (создаются только при первой записи)
         logger.add(
             session_dir / "trading.log",
             level="INFO",
             format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
             filter=lambda record: "trading" in record["name"].lower(),
-            encoding="utf-8"
+            encoding="utf-8",
+            delay=True  # Файл создается только при первой записи, проходящей через фильтр
         )
         
         logger.add(
@@ -89,7 +92,8 @@ def setup_logging(config_path: str = "config/main.yaml"):
             level="INFO",
             format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
             filter=lambda record: "neural" in record["name"].lower(),
-            encoding="utf-8"
+            encoding="utf-8",
+            delay=True  # Файл создается только при первой записи, проходящей через фильтр
         )
         
         # Настройка логов для GUI приложения
@@ -98,7 +102,8 @@ def setup_logging(config_path: str = "config/main.yaml"):
             level="INFO",
             format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
             filter=lambda record: "gui" in record["name"].lower() or "web" in record["name"].lower(),
-            encoding="utf-8"
+            encoding="utf-8",
+            delay=True  # Файл создается только при первой записи, проходящей через фильтр
         )
         
         # Настройка логов для бэктестинга
@@ -107,7 +112,8 @@ def setup_logging(config_path: str = "config/main.yaml"):
             level="INFO",
             format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
             filter=lambda record: "backtest" in record["name"].lower(),
-            encoding="utf-8"
+            encoding="utf-8",
+            delay=True  # Файл создается только при первой записи, проходящей через фильтр
         )
         
         # Настройка логов для веб-запуска
@@ -116,14 +122,60 @@ def setup_logging(config_path: str = "config/main.yaml"):
             level="INFO",
             format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
             filter=lambda record: "web_launcher" in record["name"].lower(),
-            encoding="utf-8"
+            encoding="utf-8",
+            delay=True  # Файл создается только при первой записи, проходящей через фильтр
         )
         
         logger.info(f"Логирование настроено для сессии {session_timestamp}")
         logger.info(f"Файлы логов сохраняются в: {session_dir}")
         
+        # Регистрация функции очистки пустых файлов при завершении работы
+        def cleanup_empty_logs():
+            """Очистка пустых лог-файлов в директории сессии"""
+            try:
+                if session_dir and session_dir.exists():
+                    # Список специализированных лог-файлов, которые могут быть пустыми
+                    specialized_logs = [
+                        "trading.log",
+                        "neural_networks.log",
+                        "gui_application.log",
+                        "backtesting.log",
+                        "web_launcher.log"
+                    ]
+                    
+                    removed_count = 0
+                    for log_filename in specialized_logs:
+                        log_file = session_dir / log_filename
+                        if log_file.exists():
+                            try:
+                                # Проверяем размер файла (пустой файл имеет размер 0)
+                                if log_file.stat().st_size == 0:
+                                    log_file.unlink()
+                                    removed_count += 1
+                            except (OSError, FileNotFoundError) as e:
+                                # Файл уже удален или недоступен - игнорируем
+                                pass
+                    
+                    if removed_count > 0:
+                        # Используем print вместо logger, т.к. logger может быть уже недоступен
+                        try:
+                            print(f"\n🧹 Очищено пустых лог-файлов: {removed_count}")
+                        except:
+                            pass  # Игнорируем ошибки при завершении
+            
+            except Exception:
+                # Игнорируем все ошибки при очистке, чтобы не мешать завершению программы
+                pass
+        
+        # Регистрация функции очистки при завершении программы
+        atexit.register(cleanup_empty_logs)
+        
+        # Возвращаем путь к директории сессии
+        return session_dir
+        
     except Exception as e:
         print(f"Ошибка настройки логирования: {e}")
+        return None
 
 
 def check_environment():
@@ -185,16 +237,17 @@ async def run_training_mode(config_path: str):
         
         if include_news_in_training:
             # При обучении используем новостные данные расширенного периода (training_news_days)
+            # Передаем data_provider для автоматической загрузки из хранилища
             news_data = historical_data.get('news_training', {}) or historical_data.get('news', {})
             if news_data:
                 logger.info(f"Новостные данные включены в обучение для {len(news_data)} символов (расширенный период)")
             else:
-                logger.warning("Новостные данные для обучения недоступны, обучение продолжится без новостей")
-            await system.network_manager.train_models(historical_data, news_data=news_data)
+                logger.info("Новостные данные для обучения будут загружены из хранилища при необходимости")
+            await system.network_manager.train_models(historical_data, news_data=news_data, data_provider=system.data_provider)
         else:
             # При обучении новостные данные НЕ используются - только исторические данные за 1 год
             logger.info("Обучение на исторических данных без новостей (новости используются только при анализе)")
-            await system.network_manager.train_models(historical_data)
+            await system.network_manager.train_models(historical_data, data_provider=system.data_provider)
         
         logger.info("✅ Обучение завершено успешно!")
         

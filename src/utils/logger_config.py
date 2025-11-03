@@ -41,7 +41,8 @@ def setup_logging():
         retention="3 days",
         level="INFO",
         format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}",
-        filter=lambda record: "trading" in record["name"].lower() or "broker" in record["name"].lower()
+        filter=lambda record: "trading" in record["name"].lower() or "broker" in record["name"].lower(),
+        delay=True  # Файл создается только при первой записи, проходящей через фильтр
     )
     
     # Лог для нейросетей
@@ -51,7 +52,8 @@ def setup_logging():
         retention="3 days",
         level="INFO",
         format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}",
-        filter=lambda record: "neural" in record["name"].lower() or "network" in record["name"].lower()
+        filter=lambda record: "neural" in record["name"].lower() or "network" in record["name"].lower(),
+        delay=True  # Файл создается только при первой записи, проходящей через фильтр
     )
     
     logger.info("Логирование настроено с поддержкой UTF-8")

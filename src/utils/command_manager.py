@@ -563,6 +563,8 @@ class CommandManager:
                 return False
             
             print("\n🔍 Запуск анализа рынка...")
+            print("💡 Примечание: При анализе кулдауны игнорируются для показа всех сигналов")
+            print("💡 При реальной торговле кулдауны работают как обычно")
             
             # Запуск анализа через систему
             if hasattr(self.system, 'network_manager') and self.system.network_manager:
@@ -582,8 +584,9 @@ class CommandManager:
                 )
                 
                 # Обновляем предсказания в торговом движке, чтобы сформировать trading_signals
+                # При анализе пропускаем проверку кулдаунов для показа всех сигналов
                 if hasattr(self.system, 'trading_engine') and self.system.trading_engine:
-                    await self.system.trading_engine.update_predictions(predictions)
+                    await self.system.trading_engine.update_predictions(predictions, skip_cooldown_check=True)
                 
                 # Экспорт сигналов после обновления предсказаний
                 await self.system._export_signals_data()

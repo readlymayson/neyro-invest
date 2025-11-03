@@ -18,20 +18,20 @@ data:
     - ROSN   # Роснефть
     - GMKN   # ГМК Норникель
     - VKCO   # ВК
-    # - MGNT   # Магнит
-    # - TATN   # Татнефть
-    # - SNGS   # Сургутнефтегаз
-    # - MOEX   # Московская Биржа
-    # - MSNG   # Мосэнерго
-    # - AFKS   # АФК Система
-    # - PLZL   # Полюс
-    # - SMLT   # ГК Самолет
-    # - HEAD   # Хэдхантер
-    # - ETLN   # МКПАО Эталон Груп
-    # - KMAZ   # КАМАЗ
-    # - BSPB   # Банк Санкт-Петербург
-    # - POSI   # Группа Позитив
-    # - GECO   # Генетико
+    - MGNT   # Магнит
+    - TATN   # Татнефть
+    - SNGS   # Сургутнефтегаз
+    - MOEX   # Московская Биржа
+    - MSNG   # Мосэнерго
+    - AFKS   # АФК Система
+    - PLZL   # Полюс
+    - SMLT   # ГК Самолет
+    - HEAD   # Хэдхантер
+    - ETLN   # МКПАО Эталон Груп
+    - KMAZ   # КАМАЗ
+    - BSPB   # Банк Санкт-Петербург
+    - POSI   # Группа Позитив
+    - GECO   # Генетико
 
   
   # T-Bank API настройки
@@ -64,16 +64,16 @@ data:
 
   # Настройки новостных данных
   news:
-    enabled: true  # Включить новостные данные
+    enabled: false  # Включить новостные данные
     providers:
       - type: "mock"  # mock, alphavantage, newsapi
-        enabled: true
+        enabled: false
         api_key: null  # Будет загружен из переменной окружения
       - type: "newsapi"
-        enabled: false  # Отключен по умолчанию
+        enabled: true
         api_key: null  # Будет загружен из переменной окружения NEWS_API_KEY
       - type: "alphavantage"
-        enabled: false  # Отключен по умолчанию
+        enabled: true  # Отключен по умолчанию
         api_key: null  # Будет загружен из переменной окружения ALPHA_VANTAGE_API_KEY
     cache_ttl: 300  # Время жизни кэша новостей (секунды)
     days_back: 14  # Количество дней назад для получения новостей (только для анализа)
@@ -81,6 +81,17 @@ data:
     include_news_in_training: true  # Включить новости в обучение (с ограничениями)
     include_news_in_analysis: true  # Включать новости в анализ (сводки за 2 недели)
     training_news_days: 180  # Максимум 180 дней новостей для обучения (не весь год)
+    # Настройки хранилища новостей
+    storage:
+      enabled: true  # Включить сохранение новостей в локальное хранилище
+      path: "data/news_storage.db"  # Путь к базе данных SQLite
+      archive_path: "data/news_archive"  # Путь к папке архива
+      auto_fill_missing: true  # Автоматически дополнять недостающие данные при загрузке
+      auto_archive: true  # Автоматически архивировать устаревшие данные
+    # Настройки обработки ошибок API
+    rate_limit_cooldown_hours: 12  # Время паузы при rate limit (часы)
+    error_retry_delay: 300  # Задержка перед повторной попыткой при ошибках (секунды)
+    max_consecutive_errors: 3  # Максимум последовательных ошибок перед длительной паузой
 
 # Настройки нейросетей
 neural_networks:
@@ -123,7 +134,11 @@ neural_networks:
     weights:
       xgboost_enhanced: 0.6
       deepseek_enhanced: 0.4
-    confidence_threshold: 0.7
+    confidence_threshold: 0.4 # Пониженный порог для ансамбля, стандартный 0.7
+  # Проверка результатов обучения
+  evaluate_after_training: true  # Автоматически проверять результаты после обучения
+  # Принудительное переобучение
+  force_retrain: true  # Если true, переобучает уже обученные модели
   
   # Интервалы анализа
   analysis_interval: 180  # секунд между анализами
@@ -145,6 +160,11 @@ trading:
   sandbox_mode: true  # Режим песочницы
   signal_check_interval: 3600  # секунд между проверками сигналов (1 час)
   
+  # Основные параметры торговли
+  min_trade_interval: 3600  # секунд между сделками (1 час)
+  max_positions: 10  # Максимальное количество позиций
+  position_size: 0.02  # Размер позиции (2% от капитала)
+  
   # Настройки брокера T-Bank
   broker_settings:
     tbank:
@@ -159,8 +179,8 @@ trading:
   # Настройки позиций
   position_sizing:
     method: "fixed_percentage"  # fixed_percentage, kelly, volatility
-    percentage: 0.02  # 2% от капитала на позицию (для тестирования)
-    max_positions: 3  # Максимальное количество позиций
+    percentage: 0.02  # 2% от капитала на позицию
+    max_positions: 10  # Максимальное количество позиций
     max_risk_per_trade: 0.01  # 1% риска на сделку
   
   # Настройки управления рисками
@@ -170,11 +190,7 @@ trading:
     max_drawdown: 0.2  # 20% максимальная просадка
     position_timeout: 7  # дней удержания позиции
   
-  # Настройки сигналов
-  signals:
-    min_confidence: 0.8  # Минимальная уверенность для торговли (повышено)
-    cooldown_period: 7200  # секунд между сигналами (2 часа)
-    max_signals_per_day: 3  # Максимум сигналов в день
+  signal_threshold: 0.4 # Пониженный порог для сигналов, стандартный 0.8
 
   # Раздельные задержки по типам сигналов
   signal_cooldowns:
@@ -193,7 +209,7 @@ trading:
   # Ограничения размера позиций
   position_limits:
     max_position_size: 0.1  # Максимум 10% от капитала на одну позицию
-    max_total_exposure: 0.8  # Максимум 80% от капитала в инвестициях
+    max_total_exposure: 0.9  # Максимум 80% от капитала в инвестициях
     min_position_size: 0.01  # Минимум 1% от капитала на позицию
     position_size_check: true  # Включить проверку размера позиций
   
@@ -230,6 +246,11 @@ portfolio:
   currency: "RUB"
   sandbox_mode: true  # Режим песочницы
   update_interval: 300  # секунд между обновлениями портфеля
+  
+  # Управление рисками портфеля
+  max_risk_per_trade: 0.01  # 1% риска на сделку
+  max_portfolio_risk: 0.1  # 10% максимальный риск портфеля
+  rebalance_threshold: 0.05  # 5% отклонение для ребалансировки
   
   # Настройки ребалансировки
   rebalancing:

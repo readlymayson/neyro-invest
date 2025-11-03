@@ -42,7 +42,8 @@ class EnhancedFeatureExtractor:
         orderbook_data: Dict = None,
         instrument_info: Dict = None,
         portfolio_manager = None,
-        symbol: str = None
+        symbol: str = None,
+        training_mode: bool = False
     ) -> pd.DataFrame:
         """
         Извлечение всех признаков для нейросети
@@ -53,6 +54,7 @@ class EnhancedFeatureExtractor:
             instrument_info: Информация об инструменте
             portfolio_manager: Менеджер портфеля для извлечения портфельных признаков
             symbol: Символ для анализа портфельных признаков
+            training_mode: Режим обучения - при True портфельные признаки не добавляются
             
         Returns:
             DataFrame с признаками
@@ -77,9 +79,9 @@ class EnhancedFeatureExtractor:
             if instrument_info:
                 features = self._add_instrument_features(features, instrument_info)
             
-            # 6. Портфельные признаки
-            if portfolio_manager:
-                features = self._add_portfolio_features(features, portfolio_manager, symbol)
+            # 6. Портфельные признаки (только если не режим обучения)
+            if portfolio_manager and not training_mode:
+                features = self._add_portfolio_features(features, portfolio_manager, symbol, training_mode=training_mode)
             
             # 7. Нормализация признаков
             features = self._normalize_features(features)
@@ -356,9 +358,19 @@ class EnhancedFeatureExtractor:
         
         return df
     
-    def _add_portfolio_features(self, data: pd.DataFrame, portfolio_manager, symbol: str = None) -> pd.DataFrame:
+    def _add_portfolio_features(self, data: pd.DataFrame, portfolio_manager, symbol: str = None, training_mode: bool = False) -> pd.DataFrame:
         """Добавление портфельных признаков"""
         df = data.copy()
+        
+        # Пропускаем добавление портфельных признаков в режиме обучения
+        if training_mode:
+            logger.debug("Пропуск портфельных признаков в режиме обучения")
+            return df
+        
+        # Проверка наличия portfolio_manager
+        if not portfolio_manager:
+            logger.debug("Portfolio manager не передан, пропуск портфельных признаков")
+            return df
         
         try:
             from .portfolio_features import PortfolioFeatureExtractor
