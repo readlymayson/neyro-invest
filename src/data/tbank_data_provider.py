@@ -74,9 +74,9 @@ class TBankDataProvider:
             logger.error(f"Ошибка инициализации T-Bank провайдера: {e}")
             raise
     
-    def _ticker_to_figi(self, ticker: str) -> Optional[str]:
+    async def _ticker_to_figi(self, ticker: str) -> Optional[str]:
         """
-        Конвертация тикера в FIGI
+        Конвертация тикера в FIGI (динамически, не зависит от конфигурации)
         
         Args:
             ticker: Тикер инструмента
@@ -84,7 +84,43 @@ class TBankDataProvider:
         Returns:
             FIGI инструмента или None
         """
-        return self.instruments_cache.get(ticker)
+        # Сначала проверяем кэш
+        if ticker in self.instruments_cache:
+            return self.instruments_cache[ticker]
+        
+        # Если не в кэше - ищем динамически через API
+        try:
+            async with AsyncClient(self.token, target=self.target) as client:
+                # Поиск в акциях
+                shares_response = await client.instruments.shares()
+                for share in shares_response.instruments:
+                    if share.ticker.upper() == ticker.upper() and share.api_trade_available_flag:
+                        self.instruments_cache[ticker] = share.figi
+                        logger.debug(f"Найден FIGI для {ticker} через динамический поиск: {share.figi}")
+                        return share.figi
+                
+                # Поиск в облигациях
+                bonds_response = await client.instruments.bonds()
+                for bond in bonds_response.instruments:
+                    if bond.ticker.upper() == ticker.upper() and bond.api_trade_available_flag:
+                        self.instruments_cache[ticker] = bond.figi
+                        logger.debug(f"Найден FIGI для {ticker} (облигация) через динамический поиск: {bond.figi}")
+                        return bond.figi
+                
+                # Поиск в ETF
+                etfs_response = await client.instruments.etfs()
+                for etf in etfs_response.instruments:
+                    if etf.ticker.upper() == ticker.upper() and etf.api_trade_available_flag:
+                        self.instruments_cache[ticker] = etf.figi
+                        logger.debug(f"Найден FIGI для {ticker} (ETF) через динамический поиск: {etf.figi}")
+                        return etf.figi
+                
+                logger.warning(f"FIGI не найден для тикера {ticker} через динамический поиск")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Ошибка динамического поиска FIGI для {ticker}: {e}")
+            return None
     
     async def get_historical_data(
         self, 
@@ -104,7 +140,7 @@ class TBankDataProvider:
             DataFrame с историческими данными (OHLCV)
         """
         try:
-            figi = self._ticker_to_figi(ticker)
+            figi = await self._ticker_to_figi(ticker)
             if not figi:
                 logger.warning(f"FIGI не найден для тикера {ticker}")
                 return pd.DataFrame()
@@ -179,7 +215,7 @@ class TBankDataProvider:
             Текущая цена
         """
         try:
-            figi = self._ticker_to_figi(ticker)
+            figi = await self._ticker_to_figi(ticker)
             if not figi:
                 logger.warning(f"FIGI не найден для тикера {ticker}")
                 return 0.0
@@ -216,7 +252,7 @@ class TBankDataProvider:
             figis = []
             ticker_to_figi = {}
             for ticker in tickers:
-                figi = self._ticker_to_figi(ticker)
+                figi = await self._ticker_to_figi(ticker)
                 if figi:
                     figis.append(figi)
                     ticker_to_figi[figi] = ticker
@@ -267,7 +303,7 @@ class TBankDataProvider:
             Словарь со стаканом заявок
         """
         try:
-            figi = self._ticker_to_figi(ticker)
+            figi = await self._ticker_to_figi(ticker)
             if not figi:
                 logger.warning(f"FIGI не найден для тикера {ticker}")
                 return {}

@@ -363,6 +363,11 @@ class InvestmentSystem:
             signals_data = []
             if all_signals:
                 for signal in all_signals.values():
+                    # Исключаем сигналы с источником "ensemble" из экспорта
+                    if signal.source == "ensemble":
+                        logger.debug(f"📊 Пропущен сигнал ensemble: {signal.symbol} {signal.signal}")
+                        continue
+                    
                     signals_data.append({
                         'time': signal.timestamp.strftime("%H:%M:%S"),
                         'symbol': signal.symbol,
@@ -383,6 +388,11 @@ class InvestmentSystem:
                 try:
                     with open(signals_file, 'r', encoding='utf-8') as f:
                         existing_signals = json.load(f)
+                        # Фильтрация: исключаем сигналы с источником "ensemble"
+                        existing_signals = [
+                            signal for signal in existing_signals 
+                            if signal.get('source') != 'ensemble'
+                        ]
                         # Добавляем поле reasoning к старым сигналам, если его нет
                         for signal in existing_signals:
                             if 'reasoning' not in signal:

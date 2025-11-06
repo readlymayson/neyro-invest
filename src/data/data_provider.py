@@ -552,6 +552,47 @@ class DataProvider:
         except Exception as e:
             logger.error(f"Ошибка обновления новостных данных: {e}")
     
+    async def get_current_price(self, symbol: str) -> float:
+        """
+        Получение текущей цены инструмента
+        
+        Args:
+            symbol: Тикер инструмента
+            
+        Returns:
+            Текущая цена или 0.0 если недоступна
+        """
+        try:
+            # Попытка использовать прямой метод get_current_price() провайдера
+            if hasattr(self.provider, 'get_current_price'):
+                try:
+                    price = await self.provider.get_current_price(symbol)
+                    if price > 0:
+                        logger.debug(f"Получена цена {symbol} через provider.get_current_price(): {price:.2f}")
+                        return float(price)
+                except Exception as e:
+                    logger.debug(f"Ошибка при вызове provider.get_current_price() для {symbol}: {e}")
+            
+            # Если прямой метод недоступен, используем get_realtime_data()
+            if hasattr(self.provider, 'get_realtime_data'):
+                try:
+                    realtime_data = await self.provider.get_realtime_data([symbol])
+                    if symbol in realtime_data and 'price' in realtime_data[symbol]:
+                        price = realtime_data[symbol]['price']
+                        if price > 0:
+                            logger.debug(f"Получена цена {symbol} через provider.get_realtime_data(): {price:.2f}")
+                            return float(price)
+                except Exception as e:
+                    logger.debug(f"Ошибка при вызове provider.get_realtime_data() для {symbol}: {e}")
+            
+            # Если ничего не помогло, возвращаем 0.0
+            logger.debug(f"Не удалось получить цену для {symbol} через провайдер")
+            return 0.0
+            
+        except Exception as e:
+            logger.error(f"Ошибка получения текущей цены для {symbol}: {e}")
+            return 0.0
+    
     async def get_latest_data(self, symbol: Optional[str] = None) -> Dict:
         """
         Получение последних данных

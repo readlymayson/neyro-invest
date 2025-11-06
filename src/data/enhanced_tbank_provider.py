@@ -152,12 +152,87 @@ class EnhancedTBankProvider(BaseDataProvider):
             logger.error(f"Ошибка загрузки инструментов: {e}")
             raise
     
-    def _ticker_to_figi(self, ticker: str) -> Optional[str]:
-        """Получение FIGI по тикеру"""
-        if not self._initialized:
-            logger.warning("Провайдер не инициализирован, FIGI не найден")
+    async def _ticker_to_figi(self, ticker: str) -> Optional[str]:
+        """
+        Получение FIGI по тикеру (динамически, не зависит от конфигурации)
+        
+        Args:
+            ticker: Тикер инструмента
+            
+        Returns:
+            FIGI инструмента или None
+        """
+        # Сначала проверяем кэш
+        if ticker in self.instruments_cache:
+            return self.instruments_cache[ticker].get('figi')
+        
+        # Если не в кэше - ищем динамически через API
+        try:
+            async with AsyncClient(self.token, target=self.target) as client:
+                # Попытка найти инструмент по тикеру через поиск
+                try:
+                    # Используем метод поиска инструментов по тикеру
+                    # T-Bank API имеет метод find_instrument, но если его нет, используем shares/bonds
+                    shares_response = await client.instruments.shares()
+                    for share in shares_response.instruments:
+                        if share.ticker.upper() == ticker.upper() and share.api_trade_available_flag:
+                            # Сохраняем в кэш для будущего использования
+                            self.instruments_cache[ticker] = {
+                                'figi': share.figi,
+                                'name': share.name,
+                                'currency': share.currency,
+                                'trading_status': share.trading_status.name,
+                                'type': 'share'
+                            }
+                            logger.debug(f"Найден FIGI для {ticker} через динамический поиск: {share.figi}")
+                            return share.figi
+                    
+                    # Если не найден в акциях, проверяем облигации
+                    bonds_response = await client.instruments.bonds()
+                    for bond in bonds_response.instruments:
+                        if bond.ticker.upper() == ticker.upper() and bond.api_trade_available_flag:
+                            self.instruments_cache[ticker] = {
+                                'figi': bond.figi,
+                                'name': bond.name,
+                                'currency': bond.currency,
+                                'trading_status': bond.trading_status.name,
+                                'type': 'bond'
+                            }
+                            logger.debug(f"Найден FIGI для {ticker} (облигация) через динамический поиск: {bond.figi}")
+                            return bond.figi
+                    
+                    # Если не найден в облигациях, проверяем ETF
+                    etfs_response = await client.instruments.etfs()
+                    for etf in etfs_response.instruments:
+                        if etf.ticker.upper() == ticker.upper() and etf.api_trade_available_flag:
+                            self.instruments_cache[ticker] = {
+                                'figi': etf.figi,
+                                'name': etf.name,
+                                'currency': etf.currency,
+                                'trading_status': etf.trading_status.name,
+                                'type': 'etf'
+                            }
+                            logger.debug(f"Найден FIGI для {ticker} (ETF) через динамический поиск: {etf.figi}")
+                            return etf.figi
+                    
+                    logger.warning(f"FIGI не найден для тикера {ticker} через динамический поиск")
+                    return None
+                    
+                except Exception as e:
+                    logger.error(f"Ошибка динамического поиска FIGI для {ticker}: {e}")
+                    return None
+        except Exception as e:
+            logger.error(f"Ошибка подключения к API для поиска FIGI {ticker}: {e}")
             return None
-        return self.instruments_cache.get(ticker, {}).get('figi')
+    
+    def _ticker_to_figi_sync(self, ticker: str) -> Optional[str]:
+        """
+        Синхронная версия получения FIGI (только из кэша)
+        Используется для совместимости со старым кодом
+        """
+        if ticker in self.instruments_cache:
+            return self.instruments_cache[ticker].get('figi')
+        return None
     
     def _quotation_to_float(self, quotation) -> float:
         """Конвертация Quotation в float"""
@@ -183,7 +258,7 @@ class EnhancedTBankProvider(BaseDataProvider):
             DataFrame с историческими данными
         """
         try:
-            figi = self._ticker_to_figi(symbol)
+            figi = await self._ticker_to_figi(symbol)
             if not figi:
                 logger.warning(f"FIGI не найден для тикера {symbol}")
                 return pd.DataFrame()
@@ -257,7 +332,7 @@ class EnhancedTBankProvider(BaseDataProvider):
             symbol_to_figi = {}
             
             for symbol in symbols:
-                figi = self._ticker_to_figi(symbol)
+                figi = await self._ticker_to_figi(symbol)
                 if figi:
                     figi_list.append(figi)
                     symbol_to_figi[figi] = symbol
@@ -301,7 +376,7 @@ class EnhancedTBankProvider(BaseDataProvider):
             Словарь со стаканом заявок
         """
         try:
-            figi = self._ticker_to_figi(symbol)
+            figi = await self._ticker_to_figi(symbol)
             if not figi:
                 logger.warning(f"FIGI не найден для тикера {symbol}")
                 return {}

@@ -347,13 +347,13 @@ class PortfolioManager:
     
     async def _get_current_price(self, symbol: str) -> float:
         """
-        Получение текущей цены инструмента
+        Получение текущей цены инструмента от провайдера данных
         
         Args:
             symbol: Тикер инструмента
             
         Returns:
-            Текущая цена
+            Текущая цена или 0.0 если цена недоступна
         """
         try:
             # Проверяем, есть ли исторические цены для бэктеста
@@ -361,28 +361,58 @@ class PortfolioManager:
                 if symbol in self._backtest_prices:
                     return self._backtest_prices[symbol]
             
-            # Получение цены из провайдера данных
-            if self.data_provider:
-                realtime_data = await self.data_provider.get_latest_data(symbol)
-                price = realtime_data.get('realtime', {}).get('price', 0.0)
+            # Проверяем наличие провайдера данных
+            if not self.data_provider:
+                logger.warning(f"Провайдер данных не установлен для получения цены {symbol}")
+                return 0.0
+            
+            # Попытка 1: Используем прямой метод get_current_price() если доступен
+            if hasattr(self.data_provider, 'get_current_price'):
+                try:
+                    price = await self.data_provider.get_current_price(symbol)
+                    if price > 0:
+                        logger.debug(f"Получена цена {symbol} через get_current_price(): {price:.2f}")
+                        return float(price)
+                    else:
+                        logger.debug(f"get_current_price() вернул 0 для {symbol}")
+                except Exception as e:
+                    logger.debug(f"Ошибка при вызове get_current_price() для {symbol}: {e}")
+            
+            # Попытка 2: Обновляем данные в реальном времени и получаем цену
+            if hasattr(self.data_provider, 'get_realtime_data'):
+                try:
+                    realtime_data = await self.data_provider.get_realtime_data([symbol])
+                    if symbol in realtime_data and 'price' in realtime_data[symbol]:
+                        price = realtime_data[symbol]['price']
+                        if price > 0:
+                            logger.debug(f"Получена цена {symbol} через get_realtime_data(): {price:.2f}")
+                            return float(price)
+                        else:
+                            logger.debug(f"get_realtime_data() вернул цену 0 для {symbol}")
+                    else:
+                        logger.debug(f"Символ {symbol} не найден в realtime_data")
+                except Exception as e:
+                    logger.debug(f"Ошибка при вызове get_realtime_data() для {symbol}: {e}")
+            
+            # Попытка 3: Используем get_latest_data() как последний вариант (может быть устаревшим)
+            try:
+                latest_data = await self.data_provider.get_latest_data(symbol)
+                price = latest_data.get('realtime', {}).get('price', 0.0)
                 if price > 0:
-                    return price
-                logger.warning(f"Не удалось получить реальную цену для {symbol}, используем последнюю известную")
+                    logger.debug(f"Получена цена {symbol} через get_latest_data(): {price:.2f} (может быть устаревшей)")
+                    return float(price)
+                else:
+                    logger.debug(f"get_latest_data() не содержит цены для {symbol}")
+            except Exception as e:
+                logger.debug(f"Ошибка при вызове get_latest_data() для {symbol}: {e}")
             
-            # Если нет провайдера или данных - используем среднюю цену покупки
-            if symbol in self.positions:
-                return self.positions[symbol].average_price
-            
-            # Fallback - возвращаем 100
-            logger.warning(f"Нет данных о цене для {symbol}, используем 100.0")
-            return 100.0
+            # Все методы не вернули цену - возвращаем 0.0
+            logger.warning(f"⚠️ Не удалось получить текущую цену для {symbol} от провайдера данных. Все методы вернули 0.0 или ошибку.")
+            return 0.0
             
         except Exception as e:
-            logger.error(f"Ошибка получения цены для {symbol}: {e}")
-            # В случае ошибки возвращаем последнюю известную цену
-            if symbol in self.positions:
-                return self.positions[symbol].current_price
-            return 100.0
+            logger.error(f"❌ Критическая ошибка получения цены для {symbol}: {e}")
+            return 0.0
     
     def set_backtest_prices(self, prices: Dict[str, float]):
         """

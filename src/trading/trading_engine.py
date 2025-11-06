@@ -413,26 +413,75 @@ class TradingEngine:
             try:
                 signals_to_execute = []
                 
+                # Статистика фильтрации
+                total_signals = len(self.trading_signals)
+                filtered_stats = {
+                    'expired_time': [],      # Устаревшие по времени
+                    'low_confidence': [],    # Низкая уверенность
+                    'cooldown': [],          # На кулдауне
+                    'cannot_open_position': []  # Нельзя открыть позицию
+                }
+                
+                logger.info(f"🔍 Начало фильтрации сигналов: проверяется {total_signals} сигналов")
+                
                 # Проверка сигналов
                 for signal_name, signal in self.trading_signals.items():
+                    signal_info = f"{signal.symbol} {signal.signal} (conf: {signal.confidence:.3f}, source: {signal.source})"
+                    
                     # Проверка времени сигнала (не старше 5 минут)
-                    if datetime.now() - signal.timestamp > timedelta(minutes=5):
+                    time_diff = datetime.now() - signal.timestamp
+                    if time_diff > timedelta(minutes=5):
+                        filtered_stats['expired_time'].append(signal_info)
+                        logger.debug(f"⏰ Пропущен {signal_info}: устарел ({time_diff.total_seconds()/60:.1f} мин назад)")
                         continue
                     
                     # Проверка уверенности
                     if signal.confidence < self.signal_threshold:
+                        filtered_stats['low_confidence'].append(signal_info)
+                        logger.debug(f"📉 Пропущен {signal_info}: низкая уверенность ({signal.confidence:.3f} < {self.signal_threshold})")
                         continue
                     
                     # Фильтрация сигналов на кулдауне перед анализом
                     if self.filter_cooldown_signals and not await self._can_execute_signal_by_type(signal):
-                        logger.debug(f"🚫 {signal.symbol}: Сигнал {signal.signal} отфильтрован на кулдауне")
+                        filtered_stats['cooldown'].append(signal_info)
+                        logger.debug(f"⏸️ Пропущен {signal_info}: на кулдауне")
                         continue
                     
                     # Проверка возможности открытия позиции
-                    if await self._can_open_position(signal.symbol, signal.signal):
-                        signals_to_execute.append(signal)
+                    can_open, reason = await self._can_open_position_with_reason(signal.symbol, signal.signal)
+                    if not can_open:
+                        filtered_stats['cannot_open_position'].append(f"{signal_info} ({reason})")
+                        logger.debug(f"🚫 Пропущен {signal_info}: {reason}")
+                        continue
+                    
+                    # Сигнал прошел все проверки
+                    signals_to_execute.append(signal)
+                    logger.debug(f"✅ Принят сигнал: {signal_info}")
                 
-                logger.debug(f"Найдено {len(signals_to_execute)} сигналов для выполнения")
+                # Итоговая статистика
+                total_filtered = sum(len(v) for v in filtered_stats.values())
+                logger.info(f"📊 Статистика фильтрации сигналов:")
+                logger.info(f"   Всего проверено: {total_signals}")
+                logger.info(f"   Устаревших по времени: {len(filtered_stats['expired_time'])}")
+                logger.info(f"   С низкой уверенностью: {len(filtered_stats['low_confidence'])}")
+                logger.info(f"   На кулдауне: {len(filtered_stats['cooldown'])}")
+                logger.info(f"   Нельзя открыть позицию: {len(filtered_stats['cannot_open_position'])}")
+                logger.info(f"   Всего отфильтровано: {total_filtered}")
+                logger.info(f"   Прошло фильтрацию: {len(signals_to_execute)}")
+                
+                # Показываем примеры отфильтрованных сигналов (первые 3 по каждой категории)
+                if total_filtered > 0:
+                    logger.info(f"📋 Примеры отфильтрованных сигналов:")
+                    for category, signals_list in filtered_stats.items():
+                        if signals_list:
+                            examples = signals_list[:3]
+                            logger.info(f"   {category}: {', '.join(examples)}{' ...' if len(signals_list) > 3 else ''}")
+                
+                if signals_to_execute:
+                    logger.info(f"✅ Найдено {len(signals_to_execute)} сигналов для выполнения")
+                else:
+                    logger.warning(f"⚠️ Найдено 0 сигналов для выполнения после фильтрации")
+                
                 return signals_to_execute
                 
             except Exception as e:
@@ -446,31 +495,47 @@ class TradingEngine:
         Args:
             symbol: Тикер инструмента
             signal: Торговый сигнал
-            
+        
         Returns:
             True если можно открыть позицию
         """
+        can_open, _ = await self._can_open_position_with_reason(symbol, signal)
+        return can_open
+    
+    async def _can_open_position_with_reason(self, symbol: str, signal: str) -> tuple[bool, str]:
+        """
+        Проверка возможности открытия позиции с объяснением причины
+        
+        Args:
+            symbol: Тикер инструмента
+            signal: Торговый сигнал
+        
+        Returns:
+            Кортеж (можно ли открыть позицию, причина отказа или "OK")
+        """
         try:
             if not self.portfolio_manager:
-                return False
+                return False, "отсутствует portfolio_manager"
             
             # Проверка максимального количества позиций
             current_positions = await self.portfolio_manager.get_positions()
             if len(current_positions) >= self.max_positions:
-                return False
+                return False, f"достигнут лимит позиций ({len(current_positions)}/{self.max_positions})"
             
             # Проверка существующей позиции по символу
             if signal in ['BUY', 'SELL']:
                 existing_position = await self.portfolio_manager.get_position(symbol)
                 if existing_position:
                     # Если позиция уже есть, проверяем возможность увеличения
-                    return await self._can_modify_position(symbol, signal)
+                    can_modify, reason = await self._can_modify_position_with_reason(symbol, signal)
+                    if not can_modify:
+                        return False, f"позиция уже существует: {reason}"
             
-            return True
+            return True, "OK"
             
         except Exception as e:
             logger.error(f"Ошибка проверки возможности открытия позиции: {e}")
-            return False
+            return False, f"ошибка проверки: {str(e)}"
     
     async def _can_modify_position(self, symbol: str, signal: str) -> bool:
         """
@@ -479,49 +544,63 @@ class TradingEngine:
         Args:
             symbol: Тикер инструмента
             signal: Торговый сигнал
-            
+        
         Returns:
             True если можно изменить позицию
         """
+        can_modify, _ = await self._can_modify_position_with_reason(symbol, signal)
+        return can_modify
+    
+    async def _can_modify_position_with_reason(self, symbol: str, signal: str) -> Tuple[bool, str]:
+        """
+        Проверка возможности изменения позиции с объяснением причины
+        
+        Args:
+            symbol: Тикер инструмента
+            signal: Торговый сигнал
+        
+        Returns:
+            Кортеж (можно ли изменить позицию, причина отказа или "OK")
+        """
         try:
             if not self.portfolio_manager:
-                return False
+                return False, "отсутствует portfolio_manager"
             
             position = await self.portfolio_manager.get_position(symbol)
             if not position:
                 if signal == 'BUY':
-                    return True
+                    return True, "OK"
                 else:
-                    return False
+                    return False, "нет позиции для продажи"
             
             # Проверка времени последней сделки (используем PortfolioManager как источник)
             if self.portfolio_manager and symbol in self.portfolio_manager.last_trade_time:
                 time_since_last_trade = datetime.now() - self.portfolio_manager.last_trade_time[symbol]
                 if time_since_last_trade.total_seconds() < self.min_trade_interval:
-                    logger.debug(f"Слишком рано для торговли {symbol}: прошло {time_since_last_trade.total_seconds()/60:.1f} мин")
-                    return False
+                    minutes_left = (self.min_trade_interval - time_since_last_trade.total_seconds()) / 60
+                    return False, f"слишком рано (нужно подождать еще {minutes_left:.1f} мин)"
             
             # Проверка на противоположные сигналы
             if signal == 'SELL' and position.quantity > 0:
                 # Продажа при наличии позиции - разрешено
-                return True
+                return True, "OK"
             elif signal == 'BUY' and position.quantity < 0:
                 # Покупка при короткой позиции - разрешено
-                return True
+                return True, "OK"
             elif signal == 'BUY' and position.quantity > 0:
                 # Покупка при длинной позиции - только если прошло достаточно времени
-                return True
+                return True, "OK"
             elif signal == 'SELL' and position.quantity <= 0:
                 # Продажа при короткой позиции - только если прошло достаточно времени
-                return False
+                return False, f"нельзя продать при короткой/нулевой позиции (quantity: {position.quantity})"
             elif signal == 'HOLD' and position.quantity <= 0:
-                return False
+                return False, f"нельзя держать при отсутствии позиции (quantity: {position.quantity})"
             
-            return True
+            return True, "OK"
             
         except Exception as e:
             logger.error(f"Ошибка проверки возможности изменения позиции: {e}")
-            return False
+            return False, f"ошибка проверки: {str(e)}"
     
     async def _can_execute_signal_by_type(self, signal: TradingSignal) -> bool:
         """

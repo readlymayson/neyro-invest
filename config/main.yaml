@@ -162,7 +162,7 @@ trading:
   
   # Основные параметры торговли
   min_trade_interval: 3600  # секунд между сделками (1 час)
-  max_positions: 10  # Максимальное количество позиций
+  max_positions: 30  # Максимальное количество позиций
   position_size: 0.02  # Размер позиции (2% от капитала)
   
   # Настройки брокера T-Bank
@@ -176,19 +176,11 @@ trading:
       sync_interval: 60  # Синхронизация с облаком каждые 60 секунд
       auto_create_account: true  # Автоматически создавать счет в sandbox
   
-  # Настройки позиций
-  position_sizing:
-    method: "fixed_percentage"  # fixed_percentage, kelly, volatility
-    percentage: 0.02  # 2% от капитала на позицию
-    max_positions: 10  # Максимальное количество позиций
-    max_risk_per_trade: 0.01  # 1% риска на сделку
+  # УДАЛЕНО: Настройки позиций (position_sizing)
+  # Параметры читаются напрямую с верхнего уровня: trading.max_positions, trading.position_size
   
-  # Настройки управления рисками
-  risk_management:
-    stop_loss: 0.05  # 5% стоп-лосс
-    take_profit: 0.15  # 15% тейк-профит
-    max_drawdown: 0.2  # 20% максимальная просадка
-    position_timeout: 7  # дней удержания позиции
+  # УДАЛЕНО: Настройки управления рисками (risk_management)
+  # Секция не используется в коде TradingEngine
   
   signal_threshold: 0.4 # Пониженный порог для сигналов, стандартный 0.8
 
@@ -252,11 +244,11 @@ portfolio:
   max_portfolio_risk: 0.1  # 10% максимальный риск портфеля
   rebalance_threshold: 0.05  # 5% отклонение для ребалансировки
   
-  # Настройки ребалансировки
-  rebalancing:
-    enabled: true
-    frequency: "weekly"  # daily, weekly, monthly
-    threshold: 0.05  # 5% отклонение для ребалансировки
+  # Настройки ребалансировки (метод _check_rebalancing не полностью реализован)
+  # rebalancing:
+  #   enabled: true  # Не используется - метод ребалансировки не реализован
+  #   frequency: "weekly"  # Не используется - метод ребалансировки не реализован
+  #   threshold: 0.05  # Дубликат portfolio.rebalance_threshold - используется напрямую
   
   # Настройки отчетности
   reporting:
